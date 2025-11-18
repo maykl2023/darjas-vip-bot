@@ -2,24 +2,36 @@ import asyncio
 import logging
 import sqlite3
 import datetime
-from aiogram import Bot, Dispatcher, Router, types
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
-from aiogram.webhook import aiohttp_webhook_handler
+import sys
+from os import getenv
+from aiohttp import web
+from aiogram import Bot, Dispatcher, Router
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.filters import Command, CommandStart
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from aiohttp import web
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
-BOT_TOKEN = '8409972026:AAH4xZ99d-Zx2e0eIwm6PVVd5XCM23cFRfY'  # Твой токен
-ADMIN_ID = 7761264987
+# Токен и настройки
+TOKEN = '8409972026:AAH4xZ99d-Zx2e0eIwm6PVVd5XCM23cFRfY'  # Твой токен
+ADMIN_ID = 7761264987  # Твой ID
 PRIVATE_CHANNEL_ID = -1003390307296
 VIP_CHANNEL_ID = -1003490943132
 USDT_ADDRESS = 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK'
 LTC_ADDRESS = 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz'
 
-# Курс для Stars (примерно 0.025 USD/Star)
+# Webhook настройки
+WEB_SERVER_HOST = "0.0.0.0"  # Для Render
+WEB_SERVER_PORT = int(getenv("PORT", 8080))  # Render использует $PORT
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_SECRET = "my-secret"  # Опционально, для безопасности
+BASE_WEBHOOK_URL = "https://darjas-vip-bot.onrender.com"  # Твой Render URL
+
+# Курс для Stars
 STAR_RATE = 0.025
 def usd_to_stars(usd):
     return int(usd / STAR_RATE)
@@ -68,7 +80,8 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS subs
                   (user_id INTEGER, channel TEXT, end_date TEXT)''')
 conn.commit()
 
-bot = Bot(token=BOT_TOKEN)
+# Bot и Dispatcher
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 router = Router()
 dp.include_router(router)
@@ -82,15 +95,17 @@ async def add_to_channel(user_id, channel_id):
         await bot.add_chat_member(channel_id, user_id)
     except Exception as e:
         logging.error(f'Add error: {e}')
+        await bot.send_message(ADMIN_ID, f'Error adding user {user_id} to channel {channel_id}: {e}')
 
 async def remove_from_channel(user_id, channel_id):
     try:
         await bot.ban_chat_member(channel_id, user_id)
     except Exception as e:
         logging.error(f'Remove error: {e}')
+        await bot.send_message(ADMIN_ID, f'Error removing user {user_id} from channel {channel_id}: {e}')
 
-@router.message(Command('start'))
-async def start(message: types.Message):
+@router.message(CommandStart())
+async def start(message: Message):
     lang = get_lang(message.from_user.language_code)
     texts = TEXTS[lang]
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -147,15 +162,19 @@ async def pay_stars(callback: types.CallbackQuery):
         desc = 'Access to VIP channel'
         channels = [VIP_CHANNEL_ID]
     payload = f'{callback.from_user.id}:{channel}:{duration}'
-    await bot.send_invoice(
-        chat_id=callback.message.chat.id,
-        title=title,
-        description=desc,
-        payload=payload,
-        provider_token='',
-        currency='XTR',
-        prices=prices
-    )
+    try:
+        await bot.send_invoice(
+            chat_id=callback.message.chat.id,
+            title=title,
+            description=desc,
+            payload=payload,
+            provider_token='',
+            currency='XTR',
+            prices=prices
+        )
+    except Exception as e:
+        await callback.answer(texts['error'].format(msg=str(e)))
+        await bot.send_message(ADMIN_ID, f'Payment error for user {callback.from_user.id}: {e}')
     await callback.answer()
 
 @router.pre_checkout_query()
@@ -163,7 +182,7 @@ async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 @router.message(lambda m: m.successful_payment)
-async def successful_payment(message: types.Message):
+async def successful_payment(message: Message):
     lang = get_lang(message.from_user.language_code)
     texts = TEXTS[lang]
     payload = message.successful_payment.invoice_payload
@@ -204,13 +223,13 @@ async def send_crypto_info(callback: types.CallbackQuery):
     await callback.answer('Send proof as message or photo.')
 
 @router.message()
-async def handle_proof(message: types.Message):
+async def handle_proof(message: Message):
     if message.reply_to_message: return
     await bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
     await bot.send_message(ADMIN_ID, f'Proof from {message.from_user.id}. Use /approve {message.from_user.id} channel duration (e.g. private week)')
 
 @router.message(Command('approve'))
-async def approve(message: types.Message):
+async def approve(message: Message):
     if message.chat.id != ADMIN_ID: return
     parts = message.text.split()
     if len(parts) != 4: return await message.reply('Usage: /approve user_id channel duration')
@@ -224,19 +243,19 @@ async def approve(message: types.Message):
         await add_to_channel(user_id, ch_id)
         cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, ?)', (user_id, str(ch_id), end_date.isoformat()))
     conn.commit()
-    user_lang = (await bot.get_chat(user_id)).language_code
-    lang = get_lang(user_lang)
+    user = await bot.get_chat(user_id)
+    lang = get_lang(user.language_code)
     texts = TEXTS[lang]
     await bot.send_message(user_id, texts['access_granted'].format(date=end_date.strftime('%Y-%m-%d')))
     await message.reply('Approved.')
 
 @router.message(Command('terms'))
-async def terms(message: types.Message):
+async def terms(message: Message):
     lang = get_lang(message.from_user.language_code)
     await message.reply(TEXTS[lang]['terms'])
 
 @router.message(Command('support'))
-async def support(message: types.Message):
+async def support(message: Message):
     lang = get_lang(message.from_user.language_code)
     await message.reply(TEXTS[lang]['support'])
 
@@ -251,29 +270,23 @@ async def check_expirations():
     if expired:
         await bot.send_message(ADMIN_ID, f'Expired {len(expired)} subs.')
 
-async def on_startup():
+async def on_startup(bot: Bot) -> None:
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_expirations, CronTrigger(hour=0, minute=0))
     scheduler.start()
-    webhook_url = 'https://darjas-vip-bot.onrender.com/webhook'  # Замени на твой Render URL!!!
-    await bot.set_webhook(webhook_url)
+    await bot.set_webhook(f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}", secret_token=WEBHOOK_SECRET)
 
-async def on_shutdown():
-    await bot.delete_webhook()
-
-async def main():
+def main() -> None:
+    dp.startup.register(on_startup)
     app = web.Application()
-    app.router.add_post('/webhook', aiohttp_webhook_handler(dp, bot))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8080)
-    await site.start()
-    await on_startup()
-    try:
-        await asyncio.Event().wait()
-    finally:
-        await on_shutdown()
-        await runner.cleanup()
+    webhook_requests_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+        secret_token=WEBHOOK_SECRET,
+    )
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
 
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    main()
