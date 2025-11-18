@@ -13,7 +13,7 @@ from aiohttp import web
 logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = '8409972026:AAH4xZ99d-Zx2e0eIwm6PVVd5XCM23cFRfY'  # Твой токен
-ADMIN_ID = 123456789  # Замени на твой ID (из @userinfobot)
+ADMIN_ID = 7761264987
 PRIVATE_CHANNEL_ID = -1003390307296
 VIP_CHANNEL_ID = -1003490943132
 USDT_ADDRESS = 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK'
