@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from aiogram import Bot, Dispatcher, types, Router, F
 from aiogram.filters import Command
 from aiogram.types import LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.webhook.fasthttp import SimpleRequestHandler
+from aiogram.webhook import SimpleRequestHandler
 from datetime import datetime, timedelta
 import os
 import logging
@@ -10,7 +10,7 @@ import asyncio
 import uvicorn
 
 TOKEN = os.getenv("BOT_TOKEN")
-RENDER_SERVICE_NAME = os.getenv("RENDER_SERVICE_NAME", "darjas-vip-bot")
+RENDER_SERVICE_NAME = os.getenv("RENDER_SERVICE_NAME", "darjas-vip-bot")  # Твой сервис в Render
 WEBHOOK_PATH = f"/bot{TOKEN}"
 WEBHOOK_URL = f"https://{RENDER_SERVICE_NAME}.onrender.com{WEBHOOK_PATH}"
 
@@ -59,9 +59,9 @@ async def check_access(user_id):
 async def start(m: types.Message):
     p, v = await check_access(m.from_user.id)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Private DarjaS — 6\( /нед • 18 \)/мес", callback_data="p")],
-        [InlineKeyboardButton(text="VIP DarjaS — 12\( /нед • 36 \)/мес", callback_data="v")],
-        [InlineKeyboardButton(text="Оба канала — скидка 10–20%", callback_data="b")],
+        [InlineKeyboardButton(text=r"Private DarjaS — 6\( /нед • 18 \)/мес", callback_data="p")],
+        [InlineKeyboardButton(text=r"VIP DarjaS — 12\( /нед • 36 \)/мес", callback_data="v")],
+        [InlineKeyboardButton(text=r"Оба канала — скидка 10–20%", callback_data="b")],
         [InlineKeyboardButton(text="Проверить / Продлить", callback_data="check")],
     ])
     await m.answer(
@@ -90,14 +90,14 @@ async def back(call: types.CallbackQuery):
 async def choose_type(call: types.CallbackQuery):
     t = call.data
     if t == "p":
-        kb = [[InlineKeyboardButton(text="Неделя — 600 ⭐", callback_data="pay_private_week")],
-              [InlineKeyboardButton(text="Месяц — 1800 ⭐", callback_data="pay_private_month")]]
+        kb = [[InlineKeyboardButton(text=r"Неделя — 600 ⭐", callback_data="pay_private_week")],
+              [InlineKeyboardButton(text=r"Месяц — 1800 ⭐", callback_data="pay_private_month")]]
     elif t == "v":
-        kb = [[InlineKeyboardButton(text="Неделя — 1200 ⭐", callback_data="pay_vip_week")],
-              [InlineKeyboardButton(text="Месяц — 3600 ⭐", callback_data="pay_vip_month")]]
+        kb = [[InlineKeyboardButton(text=r"Неделя — 1200 ⭐", callback_data="pay_vip_week")],
+              [InlineKeyboardButton(text=r"Месяц — 3600 ⭐", callback_data="pay_vip_month")]]
     else:
-        kb = [[InlineKeyboardButton(text="Неделя обоих — 1620 ⭐ (−10%)", callback_data="pay_both_week")],
-              [InlineKeyboardButton(text="Месяц обоих — 4320 ⭐ (−20%)", callback_data="pay_both_month")]]
+        kb = [[InlineKeyboardButton(text=r"Неделя обоих — 1620 ⭐ (−10%)", callback_data="pay_both_week")],
+              [InlineKeyboardButton(text=r"Месяц обоих — 4320 ⭐ (−20%)", callback_data="pay_both_month")]]
     kb.append([InlineKeyboardButton(text="« Назад", callback_data="back")])
     await call.message.edit_text("Выбери срок:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
@@ -157,8 +157,8 @@ async def on_startup():
 @app.post(WEBHOOK_PATH)
 async def webhook(request: Request):
     handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
-    await handler.typing_action(request)
-    return await handler.feed_update(request)
+    await handler.feed_update(request)
+    return {"ok": True}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
