@@ -1,12 +1,16 @@
 from aiogram import Bot, Dispatcher, types, Router, F
 from aiogram.filters import Command
 from aiogram.types import LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.webhook import BaseRequestHandler
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 from datetime import datetime, timedelta
 import asyncio
 import os
 import logging
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME', 'darjas-bot.onrender.com')}/webhook"
 PRIVATE_ID = int(os.getenv("PRIVATE_ID"))
 VIP_ID = int(os.getenv("VIP_ID"))
 
@@ -139,10 +143,22 @@ async def success(m: types.Message):
 
 dp.include_router(router)
 
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
+    print("Webhook установлен!")
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    print("Webhook удалён!")
+
 async def main():
     logging.basicConfig(level=logging.INFO)
-    print("DarjaS Bot запущен 24/7!")
-    await dp.start_polling(bot)
+    app = web.Application()
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+    setup_application(app, dp, bot=bot)
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
 
 if __name__ == "__main__":
     asyncio.run(main())
