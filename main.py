@@ -1,16 +1,24 @@
+from fastapi import FastAPI, Request
 from aiogram import Bot, Dispatcher, types, Router, F
 from aiogram.filters import Command
 from aiogram.types import LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.webhook import BaseRequestHandler
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
+from aiogram.webhook.fasthttp import SimpleRequestHandler
 from datetime import datetime, timedelta
-import asyncio
 import os
 import logging
+import asyncio
+import uvicorn
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME', 'darjas-bot.onrender.com')}/webhook"
+TOKEN = os.getenv("BOT_TOKEN")
+RENDER_SERVICE_NAME = os.getenv("RENDER_SERVICE_NAME", "darjas-vip-bot")
+WEBHOOK_PATH = f"/bot{TOKEN}"
+WEBHOOK_URL = f"https://{RENDER_SERVICE_NAME}.onrender.com{WEBHOOK_PATH}"
+
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+router = Router()
+
 PRIVATE_ID = int(os.getenv("PRIVATE_ID"))
 VIP_ID = int(os.getenv("VIP_ID"))
 
@@ -22,10 +30,6 @@ PRICES = {
     "both_week": 1620,     # 10% скидка
     "both_month": 4320     # 20% скидка
 }
-
-bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
-dp = Dispatcher()
-router = Router()
 
 async def create_link(channel_id, days):
     expire = int((datetime.utcnow() + timedelta(days=days)).timestamp())
@@ -143,22 +147,18 @@ async def success(m: types.Message):
 
 dp.include_router(router)
 
-async def on_startup(app):
+app = FastAPI()
+
+@app.on_event("startup")
+async def on_startup():
     await bot.set_webhook(WEBHOOK_URL)
-    print("Webhook установлен!")
+    logging.info(f"Webhook установлен: {WEBHOOK_URL}")
 
-async def on_shutdown(app):
-    await bot.delete_webhook()
-    print("Webhook удалён!")
-
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    app = web.Application()
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-    setup_application(app, dp, bot=bot)
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
-    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+@app.post(WEBHOOK_PATH)
+async def webhook(request: Request):
+    handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    await handler.typing_action(request)
+    return await handler.feed_update(request)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
