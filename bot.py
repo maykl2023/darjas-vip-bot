@@ -2,32 +2,33 @@ import asyncio
 import logging
 import sqlite3
 import datetime
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
-from aiogram.utils import executor
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher, Router, types
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
+from aiogram.webhook import aiohttp_webhook_handler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from aiohttp import web
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = '8409972026:AAH4xZ99d-Zx2e0eIwm6PVVd5XCM23cFRfY'  # Ваш токен
-ADMIN_ID = 123456789  # Замените на ваш Telegram ID (не @maykll23, а число)
+BOT_TOKEN = '8409972026:AAH4xZ99d-Zx2e0eIwm6PVVd5XCM23cFRfY'  # Твой токен
+ADMIN_ID = 123456789  # Замени на твой ID (из @userinfobot)
 PRIVATE_CHANNEL_ID = -1003390307296
 VIP_CHANNEL_ID = -1003490943132
-USDT_ADDRESS = 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK'  # USDT TRC20
-LTC_ADDRESS = 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz'  # LTC
+USDT_ADDRESS = 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK'
+LTC_ADDRESS = 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz'
 
-# Курс для Stars (примерно 0.025 USD/Star для пользователя)
+# Курс для Stars (примерно 0.025 USD/Star)
 STAR_RATE = 0.025
 def usd_to_stars(usd):
     return int(usd / STAR_RATE)
 
-# Цены в USD, округленные
+# Цены
 PRICES = {
     'private': {'week': 6, 'month': 18},
     'vip': {'week': 12, 'month': 36},
-    'both': {'week': 16, 'month': 43}  # После скидки и округления
+    'both': {'week': 16, 'month': 43}
 }
 
 # Тексты
@@ -68,16 +69,16 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS subs
 conn.commit()
 
 bot = Bot(token=BOT_TOKEN)
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
+dp = Dispatcher()
+router = Router()
+dp.include_router(router)
 
 def get_lang(user_lang):
-    return 'ru' if user_lang.startswith('ru') else 'en'
+    return 'ru' if user_lang and user_lang.startswith('ru') else 'en'
 
 async def add_to_channel(user_id, channel_id):
     try:
         await bot.unban_chat_member(channel_id, user_id, only_if_banned=True)
-        await bot.export_chat_invite_link(channel_id)  # Для генерации, но используем add
         await bot.add_chat_member(channel_id, user_id)
     except Exception as e:
         logging.error(f'Add error: {e}')
@@ -88,27 +89,29 @@ async def remove_from_channel(user_id, channel_id):
     except Exception as e:
         logging.error(f'Remove error: {e}')
 
-@dp.message_handler(commands=['start'])
+@router.message(Command('start'))
 async def start(message: types.Message):
     lang = get_lang(message.from_user.language_code)
     texts = TEXTS[lang]
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton('Private DarjaS', callback_data='channel_private'))
-    kb.add(InlineKeyboardButton('VIP DarjaS', callback_data='channel_vip'))
-    kb.add(InlineKeyboardButton('Both', callback_data='channel_both'))
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Private DarjaS', callback_data='channel_private')],
+        [InlineKeyboardButton(text='VIP DarjaS', callback_data='channel_vip')],
+        [InlineKeyboardButton(text='Both', callback_data='channel_both')]
+    ])
     await message.reply(texts['welcome'], reply_markup=kb)
 
-@dp.callback_query_handler(lambda c: c.data.startswith('channel_'))
+@router.callback_query(lambda c: c.data.startswith('channel_'))
 async def choose_duration(callback: types.CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
     channel = callback.data.split('_')[1]
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton('1 week', callback_data=f'duration_{channel}_week'))
-    kb.add(InlineKeyboardButton('1 month', callback_data=f'duration_{channel}_month'))
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='1 week', callback_data=f'duration_{channel}_week')],
+        [InlineKeyboardButton(text='1 month', callback_data=f'duration_{channel}_month')]
+    ])
     await callback.message.edit_text(texts['choose_duration'].format(channel=channel.capitalize()), reply_markup=kb)
 
-@dp.callback_query_handler(lambda c: c.data.startswith('duration_'))
+@router.callback_query(lambda c: c.data.startswith('duration_'))
 async def choose_payment(callback: types.CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
@@ -116,12 +119,13 @@ async def choose_payment(callback: types.CallbackQuery):
     channel, duration = parts[1], parts[2]
     price_usd = PRICES[channel][duration]
     stars = usd_to_stars(price_usd)
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton(texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}'))
-    kb.add(InlineKeyboardButton(texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}'))
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}')],
+        [InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}')]
+    ])
     await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
 
-@dp.callback_query_handler(lambda c: c.data.startswith('pay_stars_'))
+@router.callback_query(lambda c: c.data.startswith('pay_stars_'))
 async def pay_stars(callback: types.CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
@@ -148,18 +152,17 @@ async def pay_stars(callback: types.CallbackQuery):
         title=title,
         description=desc,
         payload=payload,
-        provider_token='',  # Пустой для Stars
+        provider_token='',
         currency='XTR',
-        prices=prices,
-        start_parameter='sub'
+        prices=prices
     )
     await callback.answer()
 
-@dp.pre_checkout_query_handler()
-async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
+@router.pre_checkout_query()
+async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-@dp.message_handler(content_types=types.ContentType.SUCCESSFUL_PAYMENT)
+@router.message(lambda m: m.successful_payment)
 async def successful_payment(message: types.Message):
     lang = get_lang(message.from_user.language_code)
     texts = TEXTS[lang]
@@ -176,19 +179,20 @@ async def successful_payment(message: types.Message):
     await message.reply(texts['access_granted'].format(date=end_date.strftime('%Y-%m-%d')))
     await bot.send_message(ADMIN_ID, f'Successful payment: User {user_id}, {channel} {duration}')
 
-@dp.callback_query_handler(lambda c: c.data.startswith('pay_crypto_'))
+@router.callback_query(lambda c: c.data.startswith('pay_crypto_'))
 async def pay_crypto(callback: types.CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
     parts = callback.data.split('_')
     channel, duration = parts[2], parts[3]
     price_usd = PRICES[channel][duration]
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton('USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}'))
-    kb.add(InlineKeyboardButton('LTC', callback_data=f'crypto_ltc_{channel}_{duration}'))
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}')],
+        [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}')]
+    ])
     await callback.message.edit_text('Choose crypto:', reply_markup=kb)
 
-@dp.callback_query_handler(lambda c: c.data.startswith('crypto_'))
+@router.callback_query(lambda c: c.data.startswith('crypto_'))
 async def send_crypto_info(callback: types.CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
@@ -197,17 +201,17 @@ async def send_crypto_info(callback: types.CallbackQuery):
     price_usd = PRICES[channel][duration]
     address = USDT_ADDRESS if crypto == 'usdt' else LTC_ADDRESS
     await callback.message.edit_text(texts['crypto_info'].format(price=price_usd, address=address, crypto=crypto.upper()))
-    # Теперь пользователь присылает proof, бот пересылает админу
     await callback.answer('Send proof as message or photo.')
 
-@dp.message_handler(content_types=['text', 'photo'])
+@router.message()
 async def handle_proof(message: types.Message):
-    if message.reply_to_message: return  # Игнор если не proof
+    if message.reply_to_message: return
     await bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
     await bot.send_message(ADMIN_ID, f'Proof from {message.from_user.id}. Use /approve {message.from_user.id} channel duration (e.g. private week)')
 
-@dp.message_handler(commands=['approve'], chat_id=ADMIN_ID)
+@router.message(Command('approve'))
 async def approve(message: types.Message):
+    if message.chat.id != ADMIN_ID: return
     parts = message.text.split()
     if len(parts) != 4: return await message.reply('Usage: /approve user_id channel duration')
     user_id = int(parts[1])
@@ -220,17 +224,18 @@ async def approve(message: types.Message):
         await add_to_channel(user_id, ch_id)
         cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, ?)', (user_id, str(ch_id), end_date.isoformat()))
     conn.commit()
-    lang = get_lang((await bot.get_chat(user_id)).language_code)  # Примерно
-    texts = TEXTS[lang or 'en']
+    user_lang = (await bot.get_chat(user_id)).language_code
+    lang = get_lang(user_lang)
+    texts = TEXTS[lang]
     await bot.send_message(user_id, texts['access_granted'].format(date=end_date.strftime('%Y-%m-%d')))
     await message.reply('Approved.')
 
-@dp.message_handler(commands=['terms'])
+@router.message(Command('terms'))
 async def terms(message: types.Message):
     lang = get_lang(message.from_user.language_code)
     await message.reply(TEXTS[lang]['terms'])
 
-@dp.message_handler(commands=['support'])
+@router.message(Command('support'))
 async def support(message: types.Message):
     lang = get_lang(message.from_user.language_code)
     await message.reply(TEXTS[lang]['support'])
@@ -246,13 +251,29 @@ async def check_expirations():
     if expired:
         await bot.send_message(ADMIN_ID, f'Expired {len(expired)} subs.')
 
-async def on_startup(dp):
+async def on_startup():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(check_expirations, CronTrigger(hour=0, minute=0))  # Ежедневно в 00:00
+    scheduler.add_job(check_expirations, CronTrigger(hour=0, minute=0))
     scheduler.start()
-    # Set webhook
-    webhook_url = 'https://your-app.onrender.com/webhook'  # Замените на ваш Render URL
+    webhook_url = 'https://darjas-vip-bot.onrender.com/webhook'  # Замени на твой Render URL!!!
     await bot.set_webhook(webhook_url)
 
+async def on_shutdown():
+    await bot.delete_webhook()
+
+async def main():
+    app = web.Application()
+    app.router.add_post('/webhook', aiohttp_webhook_handler(dp, bot))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    await site.start()
+    await on_startup()
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await on_shutdown()
+        await runner.cleanup()
+
 if __name__ == '__main__':
-    executor.start_webhook(dp, webhook_path='/webhook', on_startup=on_startup, skip_updates=True, host='0.0.0.0', port=8080)
+    asyncio.run(main())
