@@ -46,8 +46,8 @@ PRICES = {
 # Тексты
 TEXTS = {
     'ru': {
-        'welcome': 'Добро пожаловать! Выберите подписку:',
-        'choose_channel': 'Выберите канал:',
+        'greeting': 'Детка я рада тебя видеть😘\nТебя ожидает невероятное путешествие💋🔞',
+        'welcome': 'Выберите подписку:',
         'choose_duration': 'Выберите срок для {channel}:',
         'price': 'Цена: {price}$ ({stars} Stars) или крипта.',
         'pay_stars': 'Оплатить Stars',
@@ -56,11 +56,16 @@ TEXTS = {
         'access_granted': 'Доступ предоставлен до {date}.',
         'error': 'Ошибка: {msg}',
         'terms': 'Условия: Подписка на приватные каналы. Нет возвратов.',
-        'support': 'Поддержка: @maykll23'
+        'support': 'Поддержка: @maykll23',
+        'back': 'Назад',
+        'both_button': 'Both (скидка 2\( /нед, 11 \)/мес)',
+        'private_button': 'Private DarjaS',
+        'vip_button': 'VIP DarjaS',
+        'choose_crypto': 'Выберите крипту:'
     },
     'en': {
-        'welcome': 'Welcome! Choose subscription:',
-        'choose_channel': 'Choose channel:',
+        'greeting': 'Baby, I\'m glad to see you😘\nYou are in for an incredible journey💋🔞',
+        'welcome': 'Choose subscription:',
         'choose_duration': 'Choose duration for {channel}:',
         'price': 'Price: {price}$ ({stars} Stars) or crypto.',
         'pay_stars': 'Pay with Stars',
@@ -69,7 +74,12 @@ TEXTS = {
         'access_granted': 'Access granted until {date}.',
         'error': 'Error: {msg}',
         'terms': 'Terms: Subscription to private channels. No refunds.',
-        'support': 'Support: @maykll23'
+        'support': 'Support: @maykll23',
+        'back': 'Back',
+        'both_button': 'Both (save 2\( /wk, 11 \)/mo)',
+        'private_button': 'Private DarjaS',
+        'vip_button': 'VIP DarjaS',
+        'choose_crypto': 'Choose crypto:'
     }
 }
 
@@ -78,6 +88,8 @@ conn = sqlite3.connect('subscriptions.db')
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS subs 
                   (user_id INTEGER, channel TEXT, end_date TEXT)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                  (user_id INTEGER PRIMARY KEY, lang TEXT)''')
 conn.commit()
 
 # Bot и Dispatcher
@@ -86,8 +98,16 @@ dp = Dispatcher()
 router = Router()
 dp.include_router(router)
 
-def get_lang(user_lang):
-    return 'ru' if user_lang and user_lang.startswith('ru') else 'en'
+def get_lang(user_id, user_lang_code):
+    cursor.execute('SELECT lang FROM users WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+    if result:
+        return result[0]
+    return 'ru' if user_lang_code and user_lang_code.startswith('ru') else 'en'
+
+async def set_lang(user_id, lang):
+    cursor.execute('INSERT OR REPLACE INTO users (user_id, lang) VALUES (?, ?)', (user_id, lang))
+    conn.commit()
 
 async def add_to_channel(user_id, channel_id):
     try:
@@ -106,62 +126,114 @@ async def remove_from_channel(user_id, channel_id):
 
 @router.message(CommandStart())
 async def start(message: Message):
-    lang = get_lang(message.from_user.language_code)
+    user_id = message.from_user.id
+    lang = get_lang(user_id, message.from_user.language_code)
+    if lang not in TEXTS:  # If no lang in DB, show choice
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Русский', callback_data='lang_ru')],
+            [InlineKeyboardButton(text='English', callback_data='lang_en')]
+        ])
+        await message.reply('Выберите язык / Choose language:', reply_markup=kb)
+    else:
+        texts = TEXTS[lang]
+        await message.reply(texts['greeting'])
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=texts['private_button'], callback_data=f'channel_private_{lang}')],
+            [InlineKeyboardButton(text=texts['vip_button'], callback_data=f'channel_vip_{lang}')],
+            [InlineKeyboardButton(text=texts['both_button'], callback_data=f'channel_both_{lang}')]
+        ])
+        await message.reply(texts['welcome'], reply_markup=kb)
+
+@router.callback_query(lambda c: c.data.startswith('lang_'))
+async def choose_lang(callback: CallbackQuery):
+    lang = callback.data.split('_')[1]
+    await set_lang(callback.from_user.id, lang)
     texts = TEXTS[lang]
+    await callback.message.edit_text(texts['greeting'])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Private DarjaS', callback_data='channel_private')],
-        [InlineKeyboardButton(text='VIP DarjaS', callback_data='channel_vip')],
-        [InlineKeyboardButton(text='Both', callback_data='channel_both')]
+        [InlineKeyboardButton(text=texts['private_button'], callback_data=f'channel_private_{lang}')],
+        [InlineKeyboardButton(text=texts['vip_button'], callback_data=f'channel_vip_{lang}')],
+        [InlineKeyboardButton(text=texts['both_button'], callback_data=f'channel_both_{lang}')]
     ])
-    await message.reply(texts['welcome'], reply_markup=kb)
+    await callback.message.reply(texts['welcome'], reply_markup=kb)
+    await callback.answer()
 
 @router.callback_query(lambda c: c.data.startswith('channel_'))
 async def choose_duration(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.language_code)
+    parts = callback.data.split('_')
+    channel = parts[1]
+    lang = parts[2]
     texts = TEXTS[lang]
-    channel = callback.data.split('_')[1]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='1 week', callback_data=f'duration_{channel}_week')],
-        [InlineKeyboardButton(text='1 month', callback_data=f'duration_{channel}_month')]
+        [InlineKeyboardButton(text='1 week' if lang == 'en' else '1 неделя', callback_data=f'duration_{channel}_week_{lang}')],
+        [InlineKeyboardButton(text='1 month' if lang == 'en' else '1 месяц', callback_data=f'duration_{channel}_month_{lang}')],
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_channels_{lang}')]
     ])
     await callback.message.edit_text(texts['choose_duration'].format(channel=channel.capitalize()), reply_markup=kb)
+    await callback.answer()
 
 @router.callback_query(lambda c: c.data.startswith('duration_'))
 async def choose_payment(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.language_code)
-    texts = TEXTS[lang]
     parts = callback.data.split('_')
-    channel, duration = parts[1], parts[2]
+    channel, duration, lang = parts[1], parts[2], parts[3]
+    texts = TEXTS[lang]
     price_usd = PRICES[channel][duration]
     stars = usd_to_stars(price_usd)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}')],
-        [InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}')]
+        [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
     ])
     await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data.startswith('back_to_duration_'))
+async def back_to_duration(callback: CallbackQuery):
+    parts = callback.data.split('_')
+    channel = parts[3]
+    lang = parts[4]
+    texts = TEXTS[lang]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='1 week' if lang == 'en' else '1 неделя', callback_data=f'duration_{channel}_week_{lang}')],
+        [InlineKeyboardButton(text='1 month' if lang == 'en' else '1 месяц', callback_data=f'duration_{channel}_month_{lang}')],
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_channels_{lang}')]
+    ])
+    await callback.message.edit_text(texts['choose_duration'].format(channel=channel.capitalize()), reply_markup=kb)
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data.startswith('back_to_channels_'))
+async def back_to_channels(callback: CallbackQuery):
+    lang = callback.data.split('_')[3]
+    texts = TEXTS[lang]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=texts['private_button'], callback_data=f'channel_private_{lang}')],
+        [InlineKeyboardButton(text=texts['vip_button'], callback_data=f'channel_vip_{lang}')],
+        [InlineKeyboardButton(text=texts['both_button'], callback_data=f'channel_both_{lang}')]
+    ])
+    await callback.message.edit_text(texts['welcome'], reply_markup=kb)
+    await callback.answer()
 
 @router.callback_query(lambda c: c.data.startswith('pay_stars_'))
 async def pay_stars(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.language_code)
-    texts = TEXTS[lang]
     parts = callback.data.split('_')
-    channel, duration = parts[2], parts[3]
+    channel, duration, lang = parts[2], parts[3], parts[4]
+    texts = TEXTS[lang]
     price_usd = PRICES[channel][duration]
     stars = usd_to_stars(price_usd)
     prices = [LabeledPrice(label='Subscription', amount=stars)]
     if channel == 'both':
-        title = 'Subscription to Both Channels'
-        desc = 'Access to Private and VIP DarjaS'
+        title = 'Subscription to Both Channels' if lang == 'en' else 'Подписка на оба канала'
+        desc = 'Access to Private and VIP DarjaS' if lang == 'en' else 'Доступ к Private и VIP DarjaS'
         channels = [PRIVATE_CHANNEL_ID, VIP_CHANNEL_ID]
     elif channel == 'private':
-        title = 'Subscription to Private DarjaS'
-        desc = 'Access to Private channel'
+        title = 'Subscription to Private DarjaS' if lang == 'en' else 'Подписка на Private DarjaS'
+        desc = 'Access to Private channel' if lang == 'en' else 'Доступ к Private каналу'
         channels = [PRIVATE_CHANNEL_ID]
     else:
-        title = 'Subscription to VIP DarjaS'
-        desc = 'Access to VIP channel'
+        title = 'Subscription to VIP DarjaS' if lang == 'en' else 'Подписка на VIP DarjaS'
+        desc = 'Access to VIP channel' if lang == 'en' else 'Доступ к VIP каналу'
         channels = [VIP_CHANNEL_ID]
-    payload = f'{callback.from_user.id}:{channel}:{duration}'
+    payload = f'{callback.from_user.id}:{channel}:{duration}:{lang}'
     try:
         await bot.send_invoice(
             chat_id=callback.message.chat.id,
@@ -183,11 +255,10 @@ async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
 
 @router.message(lambda m: m.successful_payment)
 async def successful_payment(message: Message):
-    lang = get_lang(message.from_user.language_code)
-    texts = TEXTS[lang]
     payload = message.successful_payment.invoice_payload
-    user_id, channel, duration = payload.split(':')
+    user_id, channel, duration, lang = payload.split(':')
     user_id = int(user_id)
+    texts = TEXTS[lang]
     days = 7 if duration == 'week' else 30
     end_date = datetime.datetime.now() + datetime.timedelta(days=days)
     channels = [PRIVATE_CHANNEL_ID] if channel == 'private' else [VIP_CHANNEL_ID] if channel == 'vip' else [PRIVATE_CHANNEL_ID, VIP_CHANNEL_ID]
@@ -200,27 +271,57 @@ async def successful_payment(message: Message):
 
 @router.callback_query(lambda c: c.data.startswith('pay_crypto_'))
 async def pay_crypto(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.language_code)
-    texts = TEXTS[lang]
     parts = callback.data.split('_')
-    channel, duration = parts[2], parts[3]
-    price_usd = PRICES[channel][duration]
+    channel, duration, lang = parts[2], parts[3], parts[4]
+    texts = TEXTS[lang]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}')],
-        [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}')]
+        [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_payment_{channel}_{duration}_{lang}')]
     ])
-    await callback.message.edit_text('Choose crypto:', reply_markup=kb)
+    await callback.message.edit_text(texts['choose_crypto'], reply_markup=kb)
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data.startswith('back_to_payment_'))
+async def back_to_payment(callback: CallbackQuery):
+    parts = callback.data.split('_')
+    channel, duration, lang = parts[3], parts[4], parts[5]
+    texts = TEXTS[lang]
+    price_usd = PRICES[channel][duration]
+    stars = usd_to_stars(price_usd)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
+    ])
+    await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
+    await callback.answer()
 
 @router.callback_query(lambda c: c.data.startswith('crypto_'))
 async def send_crypto_info(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.language_code)
-    texts = TEXTS[lang]
     parts = callback.data.split('_')
-    crypto, channel, duration = parts[1], parts[2], parts[3]
+    crypto, channel, duration, lang = parts[1], parts[2], parts[3], parts[4]
+    texts = TEXTS[lang]
     price_usd = PRICES[channel][duration]
     address = USDT_ADDRESS if crypto == 'usdt' else LTC_ADDRESS
-    await callback.message.edit_text(texts['crypto_info'].format(price=price_usd, address=address, crypto=crypto.upper()))
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_crypto_{channel}_{duration}_{lang}')]
+    ])
+    await callback.message.edit_text(texts['crypto_info'].format(price=price_usd, address=address, crypto=crypto.upper()), reply_markup=kb)
     await callback.answer('Send proof as message or photo.')
+
+@router.callback_query(lambda c: c.data.startswith('back_to_crypto_'))
+async def back_to_crypto(callback: CallbackQuery):
+    parts = callback.data.split('_')
+    channel, duration, lang = parts[3], parts[4], parts[5]
+    texts = TEXTS[lang]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_payment_{channel}_{duration}_{lang}')]
+    ])
+    await callback.message.edit_text(texts['choose_crypto'], reply_markup=kb)
+    await callback.answer()
 
 @router.message()
 async def handle_proof(message: Message):
@@ -243,20 +344,19 @@ async def approve(message: Message):
         await add_to_channel(user_id, ch_id)
         cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, ?)', (user_id, str(ch_id), end_date.isoformat()))
     conn.commit()
-    user = await bot.get_chat(user_id)
-    lang = get_lang(user.language_code)
+    lang = get_lang(user_id, None)  # Fallback None, but DB should have
     texts = TEXTS[lang]
     await bot.send_message(user_id, texts['access_granted'].format(date=end_date.strftime('%Y-%m-%d')))
     await message.reply('Approved.')
 
 @router.message(Command('terms'))
 async def terms(message: Message):
-    lang = get_lang(message.from_user.language_code)
+    lang = get_lang(message.from_user.id, message.from_user.language_code)
     await message.reply(TEXTS[lang]['terms'])
 
 @router.message(Command('support'))
 async def support(message: Message):
-    lang = get_lang(message.from_user.language_code)
+    lang = get_lang(message.from_user.id, message.from_user.language_code)
     await message.reply(TEXTS[lang]['support'])
 
 async def check_expirations():
