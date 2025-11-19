@@ -1,5 +1,5 @@
 aiogram==3.22.0
 apscheduler==3.11.1
 aiohttp==3.10.10
-pytoniq==0.1.37
+pytoniq==0.1.40
 requests==2.32.3
