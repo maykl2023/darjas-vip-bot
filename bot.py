@@ -199,25 +199,20 @@ async def choose_payment(callback: CallbackQuery):
     texts = TEXTS[lang]
     price_usd = PRICES[channel][duration]
     stars = usd_to_stars(price_usd)
-    if channel == 'test':
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')],
-            [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
-        ])
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
+    if duration == 'week':
+        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')])
     else:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')],
-            [InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')],
-            [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
-        ])
+        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')])
+        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')])
+    kb.inline_keyboard.append([InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')])
     await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
     await callback.answer()
 
 @router.callback_query(lambda c: c.data.startswith('back_to_duration_'))
 async def back_to_duration(callback: CallbackQuery):
     parts = callback.data.split('_')
-    channel = parts[3]
-    lang = parts[4]
+    channel, lang = parts[3], parts[4]
     texts = TEXTS[lang]
     if channel == 'test':
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -327,30 +322,9 @@ async def pay_crypto(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}_{lang}')],
         [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}_{lang}')],
-        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_payment_{channel}_{duration}_{lang}')]
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
     ])
     await callback.message.edit_text(texts['choose_crypto'], reply_markup=kb)
-    await callback.answer()
-
-@router.callback_query(lambda c: c.data.startswith('back_to_payment_'))
-async def back_to_payment(callback: CallbackQuery):
-    parts = callback.data.split('_')
-    channel, duration, lang = parts[3], parts[4], parts[5]
-    texts = TEXTS[lang]
-    price_usd = PRICES[channel][duration]
-    stars = usd_to_stars(price_usd)
-    if channel == 'test':
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')],
-            [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
-        ])
-    else:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')],
-            [InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')],
-            [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
-        ])
-    await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
     await callback.answer()
 
 @router.callback_query(lambda c: c.data.startswith('crypto_'))
@@ -361,22 +335,26 @@ async def send_crypto_info(callback: CallbackQuery):
     price_usd = PRICES[channel][duration]
     address = USDT_ADDRESS if crypto == 'usdt' else LTC_ADDRESS
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_crypto_{channel}_{duration}_{lang}')]
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_payment_{channel}_{duration}_{lang}')]
     ])
     await callback.message.edit_text(texts['crypto_info'].format(price=price_usd, address=address, crypto=crypto.upper()), reply_markup=kb)
     await callback.answer(texts['send_proof'])
 
-@router.callback_query(lambda c: c.data.startswith('back_to_crypto_'))
-async def back_to_crypto(callback: CallbackQuery):
+@router.callback_query(lambda c: c.data.startswith('back_to_payment_'))
+async def back_to_payment(callback: CallbackQuery):
     parts = callback.data.split('_')
     channel, duration, lang = parts[3], parts[4], parts[5]
     texts = TEXTS[lang]
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}_{lang}')],
-        [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}_{lang}')],
-        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_payment_{channel}_{duration}_{lang}')]
-    ])
-    await callback.message.edit_text(texts['choose_crypto'], reply_markup=kb)
+    price_usd = PRICES[channel][duration]
+    stars = usd_to_stars(price_usd)
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
+    if duration == 'week':
+        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')])
+    else:
+        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')])
+        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')])
+    kb.inline_keyboard.append([InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')])
+    await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
     await callback.answer()
 
 @router.message()
