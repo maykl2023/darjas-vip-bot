@@ -9,7 +9,7 @@ from aiogram import Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery, CallbackQuery
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -116,7 +116,7 @@ async def start(message: Message):
     await message.reply(texts['welcome'], reply_markup=kb)
 
 @router.callback_query(lambda c: c.data.startswith('channel_'))
-async def choose_duration(callback: types.CallbackQuery):
+async def choose_duration(callback: CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
     channel = callback.data.split('_')[1]
@@ -127,7 +127,7 @@ async def choose_duration(callback: types.CallbackQuery):
     await callback.message.edit_text(texts['choose_duration'].format(channel=channel.capitalize()), reply_markup=kb)
 
 @router.callback_query(lambda c: c.data.startswith('duration_'))
-async def choose_payment(callback: types.CallbackQuery):
+async def choose_payment(callback: CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
     parts = callback.data.split('_')
@@ -141,7 +141,7 @@ async def choose_payment(callback: types.CallbackQuery):
     await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
 
 @router.callback_query(lambda c: c.data.startswith('pay_stars_'))
-async def pay_stars(callback: types.CallbackQuery):
+async def pay_stars(callback: CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
     parts = callback.data.split('_')
@@ -199,7 +199,7 @@ async def successful_payment(message: Message):
     await bot.send_message(ADMIN_ID, f'Successful payment: User {user_id}, {channel} {duration}')
 
 @router.callback_query(lambda c: c.data.startswith('pay_crypto_'))
-async def pay_crypto(callback: types.CallbackQuery):
+async def pay_crypto(callback: CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
     parts = callback.data.split('_')
@@ -212,7 +212,7 @@ async def pay_crypto(callback: types.CallbackQuery):
     await callback.message.edit_text('Choose crypto:', reply_markup=kb)
 
 @router.callback_query(lambda c: c.data.startswith('crypto_'))
-async def send_crypto_info(callback: types.CallbackQuery):
+async def send_crypto_info(callback: CallbackQuery):
     lang = get_lang(callback.from_user.language_code)
     texts = TEXTS[lang]
     parts = callback.data.split('_')
