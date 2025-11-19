@@ -16,7 +16,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 import requests
-from pytonlib import TonlibClient
+from pytoniq import LiteClient
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
@@ -132,7 +132,7 @@ router = Router()
 dp.include_router(router)
 
 # TON Client без ключа
-ton_client = TonlibClient(testnet=False)  # Mainnet, без ключа (лимит запросов)
+ton_client = LiteClient.from_mainnet_config(ls_i=2, trust_level=2)  # ls_i for liteserver index, trust_level for security
 
 def get_lang(user_id):
     cursor.execute('SELECT lang FROM users WHERE user_id = ?', (user_id,))
@@ -337,9 +337,9 @@ async def check_ton_payments():
     for p in pending:
         user_id, channel, duration, amount, memo = p
         try:
-            transactions = await ton_client.get_transactions(address=TON_ADDRESS, limit=20)
+            transactions = await ton_client.get_account_transactions(TON_ADDRESS, count=20)
             for tx in transactions:
-                if tx['in_msg']['message'] == memo and tx['in_msg']['value'] / 10**9 >= amount:
+                if tx.in_msg and tx.in_msg.msg_data.text == memo and tx.in_msg.value / 10**9 >= amount:
                     cursor.execute('DELETE FROM pending_payments WHERE user_id=? AND memo=?', (user_id, memo))
                     conn.commit()
                     days = await get_days_from_duration(duration)
@@ -419,8 +419,8 @@ async def on_join(update: ChatMemberUpdated):
     user_id = update.from_user.id
     cursor.execute('SELECT * FROM subs WHERE user_id = ? AND channel = ? AND end_date IS NULL', (user_id, str(channel_id)))
     if cursor.fetchone():
-        # Assume duration from DB or fixed, but for simplicity use 30 days
-        end_date = datetime.datetime.now() + datetime.timedelta(days=30)  # Replace with actual from DB if stored
+        # Assume 30 days, or store duration in DB
+        end_date = datetime.datetime.now() + datetime.timedelta(days=30)
         cursor.execute('UPDATE subs SET end_date = ? WHERE user_id = ? AND channel = ?', (end_date.isoformat(), user_id, str(channel_id)))
         conn.commit()
         lang = get_lang(user_id)
@@ -439,6 +439,7 @@ async def check_expirations():
         await bot.send_message(ADMIN_ID, f'Expired {len(expired)} subs.')
 
 async def on_startup(bot: Bot) -> None:
+    await ton_client.connect()
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_expirations, CronTrigger(hour=0, minute=0))
     scheduler.add_job(check_ton_payments, IntervalTrigger(seconds=60))
