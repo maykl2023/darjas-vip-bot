@@ -114,11 +114,11 @@ TEXTS = {
     }
 }
 
-# DB
+# DB (добавил duration)
 conn = sqlite3.connect('subscriptions.db')
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS subs 
-                  (user_id INTEGER, channel TEXT, end_date TEXT)''')
+                  (user_id INTEGER, channel TEXT, end_date TEXT, duration TEXT)''')
 cursor.execute('''CREATE TABLE IF NOT EXISTS users 
                   (user_id INTEGER PRIMARY KEY, lang TEXT)''')
 cursor.execute('''CREATE TABLE IF NOT EXISTS pending_payments 
@@ -132,7 +132,7 @@ router = Router()
 dp.include_router(router)
 
 # TON Client без ключа
-ton_client = LiteClient.from_mainnet_config(ls_i=2, trust_level=2)  # ls_i for liteserver index, trust_level for security
+ton_client = LiteClient.from_mainnet_config(ls_i=0, trust_level=2)  # ls_i=0 for first liteserver
 
 def get_lang(user_id):
     cursor.execute('SELECT lang FROM users WHERE user_id = ?', (user_id,))
@@ -304,14 +304,13 @@ async def successful_payment(message: Message):
     payload = message.successful_payment.invoice_payload
     user_id, channel, duration = payload.split(':')
     user_id = int(user_id)
-    days = await get_days_from_duration(duration)
     channels = [PRIVATE_CHANNEL_ID] if channel == 'private' else [VIP_CHANNEL_ID] if channel == 'vip' else [PRIVATE_CHANNEL_ID, VIP_CHANNEL_ID] if channel == 'both' else [PRIVATE_CHANNEL_ID]
     links = []
     for ch_id in channels:
         link = await add_to_channel(user_id, ch_id)
         if link:
             links.append(link)
-        cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL)', (user_id, str(ch_id)))
+        cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL, ?)', (user_id, str(ch_id), duration))
     conn.commit()
     link_text = '\n'.join(links)
     await message.reply(texts['access_granted'].format(link=link_text, date='[date after join]'))
@@ -337,19 +336,18 @@ async def check_ton_payments():
     for p in pending:
         user_id, channel, duration, amount, memo = p
         try:
-            transactions = await ton_client.get_account_transactions(TON_ADDRESS, count=20)
-            for tx in transactions:
-                if tx.in_msg and tx.in_msg.msg_data.text == memo and tx.in_msg.value / 10**9 >= amount:
+            txs = await ton_client.get_transactions(address=TON_ADDRESS, num=20)
+            for tx in txs.transactions:
+                if tx.in_msg.comment == memo and tx.in_msg.amount / 10**9 >= amount:
                     cursor.execute('DELETE FROM pending_payments WHERE user_id=? AND memo=?', (user_id, memo))
                     conn.commit()
-                    days = await get_days_from_duration(duration)
                     channels = [PRIVATE_CHANNEL_ID] if channel == 'private' else [VIP_CHANNEL_ID] if channel == 'vip' else [PRIVATE_CHANNEL_ID, VIP_CHANNEL_ID] if channel == 'both' else [PRIVATE_CHANNEL_ID]
                     links = []
                     for ch_id in channels:
                         link = await add_to_channel(user_id, ch_id)
                         if link:
                             links.append(link)
-                        cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL)', (user_id, str(ch_id)))
+                        cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL, ?)', (user_id, str(ch_id), duration))
                     conn.commit()
                     texts = TEXTS[get_lang(user_id)]
                     link_text = '\n'.join(links)
@@ -407,7 +405,7 @@ async def approve(message: Message):
         link = await add_to_channel(user_id, ch_id)
         if link:
             links.append(link)
-        cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL)', (user_id, str(ch_id)))
+        cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL, ?)', (user_id, str(ch_id), duration))
     conn.commit()
     link_text = '\n'.join(links)
     await bot.send_message(user_id, texts['access_granted'].format(link=link_text, date='[date after join]'))
@@ -417,10 +415,12 @@ async def approve(message: Message):
 async def on_join(update: ChatMemberUpdated):
     channel_id = update.chat.id
     user_id = update.from_user.id
-    cursor.execute('SELECT * FROM subs WHERE user_id = ? AND channel = ? AND end_date IS NULL', (user_id, str(channel_id)))
-    if cursor.fetchone():
-        # Assume 30 days, or store duration in DB
-        end_date = datetime.datetime.now() + datetime.timedelta(days=30)
+    cursor.execute('SELECT duration FROM subs WHERE user_id = ? AND channel = ? AND end_date IS NULL', (user_id, str(channel_id)))
+    result = cursor.fetchone()
+    if result:
+        duration = result[0]
+        days = await get_days_from_duration(duration)
+        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
         cursor.execute('UPDATE subs SET end_date = ? WHERE user_id = ? AND channel = ?', (end_date.isoformat(), user_id, str(channel_id)))
         conn.commit()
         lang = get_lang(user_id)
@@ -431,7 +431,7 @@ async def check_expirations():
     now = datetime.datetime.now().isoformat()
     cursor.execute('SELECT * FROM subs WHERE end_date < ? AND end_date IS NOT NULL', (now,))
     expired = cursor.fetchall()
-    for user_id, ch_id, _ in expired:
+    for user_id, ch_id, _ , _ in expired:
         await remove_from_channel(int(user_id), int(ch_id))
         cursor.execute('DELETE FROM subs WHERE user_id=? AND channel=?', (user_id, ch_id))
     conn.commit()
@@ -439,7 +439,7 @@ async def check_expirations():
         await bot.send_message(ADMIN_ID, f'Expired {len(expired)} subs.')
 
 async def on_startup(bot: Bot) -> None:
-    await ton_client.connect()
+    await ton_client.start_up()
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_expirations, CronTrigger(hour=0, minute=0))
     scheduler.add_job(check_ton_payments, IntervalTrigger(seconds=60))
