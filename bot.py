@@ -52,16 +52,17 @@ TEXTS = {
         'price': 'Цена: {price}$ ({stars} Stars) или крипта.',
         'pay_stars': 'Оплатить Stars',
         'pay_crypto': 'Оплатить криптой',
-        'crypto_info': 'Отправьте {price}$ эквивалент на {address} ({crypto}), затем пришлите proof здесь.',
+        'crypto_info': 'Отправьте {price}$ эквивалент на {address} ({crypto}), затем пришлите фото квитанции сюда.',
         'access_granted': 'Доступ предоставлен до {date}.',
         'error': 'Ошибка: {msg}',
         'terms': 'Условия: Подписка на приватные каналы. Нет возвратов.',
         'support': 'Поддержка: @maykll23',
         'back': 'Назад',
-        'both_button': 'Both (скидка 2\( /нед, 11 \)/мес)',
+        'both_button': 'Private+VIP (скидка 10-20%)',
         'private_button': 'Private DarjaS',
         'vip_button': 'VIP DarjaS',
-        'choose_crypto': 'Выберите крипту:'
+        'choose_crypto': 'Выберите крипту:',
+        'send_proof': 'Пришлите фото квитанции сюда.'
     },
     'en': {
         'greeting': 'Baby, I\'m glad to see you😘\nYou are in for an incredible journey💋🔞',
@@ -70,16 +71,17 @@ TEXTS = {
         'price': 'Price: {price}$ ({stars} Stars) or crypto.',
         'pay_stars': 'Pay with Stars',
         'pay_crypto': 'Pay with crypto',
-        'crypto_info': 'Send {price}$ equivalent to {address} ({crypto}), then send proof here.',
+        'crypto_info': 'Send {price}$ equivalent to {address} ({crypto}), then send photo of the receipt here.',
         'access_granted': 'Access granted until {date}.',
         'error': 'Error: {msg}',
         'terms': 'Terms: Subscription to private channels. No refunds.',
         'support': 'Support: @maykll23',
         'back': 'Back',
-        'both_button': 'Both (save 2\( /wk, 11 \)/mo)',
+        'both_button': 'Private+VIP (10-20% off)',
         'private_button': 'Private DarjaS',
         'vip_button': 'VIP DarjaS',
-        'choose_crypto': 'Choose crypto:'
+        'choose_crypto': 'Choose crypto:',
+        'send_proof': 'Send photo of the receipt here.'
     }
 }
 
@@ -130,10 +132,10 @@ async def start(message: Message):
     lang = get_lang(user_id, message.from_user.language_code)
     if lang not in TEXTS:  # If no lang in DB, show choice
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text='Русский', callback_data='lang_ru')],
-            [InlineKeyboardButton(text='English', callback_data='lang_en')]
+            [InlineKeyboardButton(text='English', callback_data='lang_en')],
+            [InlineKeyboardButton(text='Russian', callback_data='lang_ru')]
         ])
-        await message.reply('Выберите язык / Choose language:', reply_markup=kb)
+        await message.reply('Language:', reply_markup=kb)
     else:
         texts = TEXTS[lang]
         await message.reply(texts['greeting'])
@@ -164,9 +166,11 @@ async def choose_duration(callback: CallbackQuery):
     channel = parts[1]
     lang = parts[2]
     texts = TEXTS[lang]
+    week_text = '1 week' if lang == 'en' else '1 неделя'
+    month_text = '1 month' if lang == 'en' else '1 месяц'
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='1 week' if lang == 'en' else '1 неделя', callback_data=f'duration_{channel}_week_{lang}')],
-        [InlineKeyboardButton(text='1 month' if lang == 'en' else '1 месяц', callback_data=f'duration_{channel}_month_{lang}')],
+        [InlineKeyboardButton(text=week_text, callback_data=f'duration_{channel}_week_{lang}')],
+        [InlineKeyboardButton(text=month_text, callback_data=f'duration_{channel}_month_{lang}')],
         [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_channels_{lang}')]
     ])
     await callback.message.edit_text(texts['choose_duration'].format(channel=channel.capitalize()), reply_markup=kb)
@@ -193,9 +197,11 @@ async def back_to_duration(callback: CallbackQuery):
     channel = parts[3]
     lang = parts[4]
     texts = TEXTS[lang]
+    week_text = '1 week' if lang == 'en' else '1 неделя'
+    month_text = '1 month' if lang == 'en' else '1 месяц'
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='1 week' if lang == 'en' else '1 неделя', callback_data=f'duration_{channel}_week_{lang}')],
-        [InlineKeyboardButton(text='1 month' if lang == 'en' else '1 месяц', callback_data=f'duration_{channel}_month_{lang}')],
+        [InlineKeyboardButton(text=week_text, callback_data=f'duration_{channel}_week_{lang}')],
+        [InlineKeyboardButton(text=month_text, callback_data=f'duration_{channel}_month_{lang}')],
         [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_channels_{lang}')]
     ])
     await callback.message.edit_text(texts['choose_duration'].format(channel=channel.capitalize()), reply_markup=kb)
@@ -308,7 +314,7 @@ async def send_crypto_info(callback: CallbackQuery):
         [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_crypto_{channel}_{duration}_{lang}')]
     ])
     await callback.message.edit_text(texts['crypto_info'].format(price=price_usd, address=address, crypto=crypto.upper()), reply_markup=kb)
-    await callback.answer('Send proof as message or photo.')
+    await callback.answer(texts['send_proof'])
 
 @router.callback_query(lambda c: c.data.startswith('back_to_crypto_'))
 async def back_to_crypto(callback: CallbackQuery):
