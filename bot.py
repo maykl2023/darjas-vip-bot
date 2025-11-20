@@ -36,11 +36,11 @@ STAR_RATE = 0.025
 def usd_to_stars(usd):
     return int(usd / STAR_RATE)
 
-# Цены
+# Цены (убрал test, добавил both если нужно)
 PRICES = {
     'private': {'week': 6, 'month': 18},
     'vip': {'week': 12, 'month': 36},
-    'test': {'month': 0.025}  # Тест 1 месяц за 1 Star
+    'both': {'week': 16, 'month': 43}  # Добавил, если нужно убрать — удали
 }
 
 # Тексты
@@ -59,12 +59,11 @@ TEXTS = {
         'terms': 'Условия: Подписка на приватные каналы. Нет возвратов.',
         'support': 'Поддержка: @maykll23',
         'back': 'Назад',
+        'both_button': 'Private+VIP (скидка 10-20%)',
         'private_button': 'Private DarjaS',
         'vip_button': 'VIP DarjaS',
-        'test_button': 'Тест (1 месяц за 1 Star)',
         'choose_crypto': 'Выберите крипту:',
-        'send_proof': 'Пришлите фото квитанции сюда.',
-        'delay_warning': 'Возможна задержка ответа от бота до 2 минут в связи с большим количеством операций'
+        'send_proof': 'Пришлите фото квитанции сюда.'
     },
     'en': {
         'greeting': 'Baby, I\'m glad to see you😘\nYou are in for an incredible journey💋🔞',
@@ -80,12 +79,11 @@ TEXTS = {
         'terms': 'Terms: Subscription to private channels. No refunds.',
         'support': 'Support: @maykll23',
         'back': 'Back',
+        'both_button': 'Private+VIP (10-20% off)',
         'private_button': 'Private DarjaS',
         'vip_button': 'VIP DarjaS',
-        'test_button': 'Test (1 month for 1 Star)',
         'choose_crypto': 'Choose crypto:',
-        'send_proof': 'Send photo of the receipt here.',
-        'delay_warning': 'Possible delay in bot response up to 2 minutes due to high volume of operations'
+        'send_proof': 'Send photo of the receipt here.'
     }
 }
 
@@ -114,7 +112,7 @@ async def set_lang(user_id, lang):
     conn.commit()
 
 async def get_days_from_duration(duration):
-    return 30 if duration == 'month' else 7
+    return 7 if duration == 'week' else 30
 
 async def send_invite_link(user_id, channel_id):
     try:
@@ -135,7 +133,6 @@ async def remove_from_channel(user_id, channel_id):
 @router.message(CommandStart())
 async def start(message: Message):
     user_id = message.from_user.id
-    await message.reply(TEXTS['ru']['delay_warning'] + '\n' + TEXTS['en']['delay_warning'])
     lang = get_lang(user_id)
     if lang is None:
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -149,7 +146,7 @@ async def start(message: Message):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=texts['private_button'], callback_data=f'channel_private_{lang}')],
             [InlineKeyboardButton(text=texts['vip_button'], callback_data=f'channel_vip_{lang}')],
-            [InlineKeyboardButton(text=texts['test_button'], callback_data=f'channel_test_{lang}')]
+            [InlineKeyboardButton(text=texts['both_button'], callback_data=f'channel_both_{lang}')]
         ])
         await message.reply(texts['welcome'], reply_markup=kb)
 
@@ -162,7 +159,7 @@ async def choose_lang(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=texts['private_button'], callback_data=f'channel_private_{lang}')],
         [InlineKeyboardButton(text=texts['vip_button'], callback_data=f'channel_vip_{lang}')],
-        [InlineKeyboardButton(text=texts['test_button'], callback_data=f'channel_test_{lang}')]
+        [InlineKeyboardButton(text=texts['both_button'], callback_data=f'channel_both_{lang}')]
     ])
     await callback.message.reply(texts['welcome'], reply_markup=kb)
     await callback.message.delete()  # Удаляем сообщение с выбором языка
@@ -181,9 +178,6 @@ async def choose_duration(callback: CallbackQuery):
         [InlineKeyboardButton(text=month_text, callback_data=f'duration_{channel}_month_{lang}')],
         [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_channels_{lang}')]
     ])
-    if channel == 'test':
-        kb.inline_keyboard.pop(0)  # Убрать week для test
-        kb.inline_keyboard[0][0].callback_data = f'duration_test_month_{lang}'
     await callback.message.edit_text(texts['choose_duration'].format(channel=channel.capitalize()), reply_markup=kb)
     await callback.answer()
 
@@ -194,20 +188,19 @@ async def choose_payment(callback: CallbackQuery):
     texts = TEXTS[lang]
     price_usd = PRICES[channel][duration]
     stars = usd_to_stars(price_usd)
-    kb = InlineKeyboardMarkup(inline_keyboard=[])
-    if duration == 'week':
-        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')])
-    else:
-        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')])
-        kb.inline_keyboard.append([InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')])
-    kb.inline_keyboard.append([InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')])
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=texts['pay_stars'], callback_data=f'pay_stars_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['pay_crypto'], callback_data=f'pay_crypto_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
+    ])
     await callback.message.edit_text(texts['price'].format(price=price_usd, stars=stars), reply_markup=kb)
     await callback.answer()
 
 @router.callback_query(lambda c: c.data.startswith('back_to_duration_'))
 async def back_to_duration(callback: CallbackQuery):
     parts = callback.data.split('_')
-    channel, lang = parts[3], parts[4]
+    channel = parts[3]
+    lang = parts[4]
     texts = TEXTS[lang]
     week_text = '1 неделя' if lang == 'ru' else '1 week'
     month_text = '1 месяц' if lang == 'ru' else '1 month'
@@ -226,7 +219,7 @@ async def back_to_channels(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=texts['private_button'], callback_data=f'channel_private_{lang}')],
         [InlineKeyboardButton(text=texts['vip_button'], callback_data=f'channel_vip_{lang}')],
-        [InlineKeyboardButton(text=texts['test_button'], callback_data=f'channel_test_{lang}')]
+        [InlineKeyboardButton(text=texts['both_button'], callback_data=f'channel_both_{lang}')]
     ])
     await callback.message.edit_text(texts['welcome'], reply_markup=kb)
     await callback.answer()
@@ -239,18 +232,18 @@ async def pay_stars(callback: CallbackQuery):
     price_usd = PRICES[channel][duration]
     stars = usd_to_stars(price_usd)
     prices = [LabeledPrice(label='Subscription', amount=stars)]
-    if channel == 'private':
-        title = 'Подписка на Private DarjaS' if lang == 'ru' else 'Subscription to Private DarjaS'
-        desc = 'Доступ к Private каналу' if lang == 'ru' else 'Access to Private channel'
+    if channel == 'both':
+        title = 'Subscription to Both Channels' if lang == 'en' else 'Подписка на оба канала'
+        desc = 'Access to Private and VIP DarjaS' if lang == 'en' else 'Доступ к Private и VIP DarjaS'
+        channels = [PRIVATE_CHANNEL_ID, VIP_CHANNEL_ID]
+    elif channel == 'private':
+        title = 'Subscription to Private DarjaS' if lang == 'en' else 'Подписка на Private DarjaS'
+        desc = 'Access to Private channel' if lang == 'en' else 'Доступ к Private каналу'
         channels = [PRIVATE_CHANNEL_ID]
-    elif channel == 'vip':
-        title = 'Подписка на VIP DarjaS' if lang == 'ru' else 'Subscription to VIP DarjaS'
-        desc = 'Доступ к VIP каналу' if lang == 'ru' else 'Access to VIP channel'
+    else:
+        title = 'Subscription to VIP DarjaS' if lang == 'en' else 'Подписка на VIP DarjaS'
+        desc = 'Access to VIP channel' if lang == 'en' else 'Доступ к VIP каналу'
         channels = [VIP_CHANNEL_ID]
-    else:  # test
-        title = 'Тестовая подписка' if lang == 'ru' else 'Test Subscription'
-        desc = 'Тестовый доступ к Private на 1 месяц' if lang == 'ru' else 'Test access to Private for 1 month'
-        channels = [PRIVATE_CHANNEL_ID]
     payload = f'{callback.from_user.id}:{channel}:{duration}:{lang}'
     try:
         await bot.send_invoice(
@@ -277,12 +270,12 @@ async def successful_payment(message: Message):
     user_id, channel, duration, lang = payload.split(':')
     user_id = int(user_id)
     texts = TEXTS[lang]
-    if channel == 'private':
+    if channel == 'both':
+        ch_ids = [PRIVATE_CHANNEL_ID, VIP_CHANNEL_ID]
+    elif channel == 'private':
         ch_ids = [PRIVATE_CHANNEL_ID]
-    elif channel == 'vip':
+    else:
         ch_ids = [VIP_CHANNEL_ID]
-    else:  # test
-        ch_ids = [PRIVATE_CHANNEL_ID]
     links = []
     for ch_id in ch_ids:
         link = await send_invite_link(user_id, ch_id)
@@ -290,8 +283,8 @@ async def successful_payment(message: Message):
             links.append(link)
         cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL, ?)', (user_id, str(ch_id), duration))
     conn.commit()
-    link_text = '\n'.join(links)
-    await message.reply(texts['access_granted'].format(link=link_text, date='[after join]'))
+    link_text = '\n'.join(links) if links else ' (ссылка не сгенерирована, проверьте вручную)'
+    await message.reply(texts['access_granted'].format(link=link_text, date='? (after join)'))
     await bot.send_message(ADMIN_ID, f'Successful payment: User {user_id}, {channel} {duration}')
 
 @router.callback_query(lambda c: c.data.startswith('pay_crypto_'))
@@ -347,14 +340,12 @@ async def approve(message: Message):
     user_id = int(parts[1])
     channel = parts[2]
     duration = parts[3]
-    lang = get_lang(user_id)
-    texts = TEXTS[lang]
-    if channel == 'private':
+    if channel == 'both':
+        ch_ids = [PRIVATE_CHANNEL_ID, VIP_CHANNEL_ID]
+    elif channel == 'private':
         ch_ids = [PRIVATE_CHANNEL_ID]
-    elif channel == 'vip':
+    else:
         ch_ids = [VIP_CHANNEL_ID]
-    else:  # test
-        ch_ids = [PRIVATE_CHANNEL_ID]
     links = []
     for ch_id in ch_ids:
         link = await send_invite_link(user_id, ch_id)
@@ -362,8 +353,10 @@ async def approve(message: Message):
             links.append(link)
         cursor.execute('INSERT OR REPLACE INTO subs VALUES (?, ?, NULL, ?)', (user_id, str(ch_id), duration))
     conn.commit()
-    link_text = '\n'.join(links)
-    await bot.send_message(user_id, texts['access_granted'].format(link=link_text, date='[after join]'))
+    lang = get_lang(user_id)
+    texts = TEXTS[lang]
+    link_text = '\n'.join(links) if links else ' (ссылка не сгенерирована, проверьте вручную)'
+    await bot.send_message(user_id, texts['access_granted'].format(link=link_text, date='? (after join)'))
     await message.reply('Approved.')
 
 @router.message(Command('terms'))
@@ -396,7 +389,7 @@ async def check_expirations():
     now = datetime.datetime.now().isoformat()
     cursor.execute('SELECT * FROM subs WHERE end_date < ?', (now,))
     expired = cursor.fetchall()
-    for user_id, ch_id, _ in expired:
+    for user_id, ch_id, _, _ in expired:
         await remove_from_channel(int(user_id), int(ch_id))
         cursor.execute('DELETE FROM subs WHERE user_id=? AND channel=?', (user_id, ch_id))
     conn.commit()
