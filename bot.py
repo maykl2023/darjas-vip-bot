@@ -110,7 +110,7 @@ dp.include_router(router)
 def get_lang(user_id):
     cursor.execute('SELECT lang FROM users WHERE user_id = ?', (user_id,))
     r = cursor.fetchone()
-    return r[0] if r else None
+    return r[0] if r else 'ru'
 
 async def set_lang(user_id, lang):
     cursor.execute('INSERT OR REPLACE INTO users (user_id, lang) VALUES (?, ?)', (user_id, lang))
@@ -137,14 +137,14 @@ async def kick_user(user_id, channel_id):
 async def start(message: Message):
     user_id = message.from_user.id
     lang = get_lang(user_id)
-    if lang is None:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text='Русский', callback_data='lang_ru')],
+    if lang == 'ru':
+        kb_lang = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text='English', callback_data='lang_en')],
         ])
-        await message.answer('Выберите язык / Choose language:', reply_markup=kb)
-        return
-
+    else:
+        kb_lang = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Русский', callback_data='lang_ru')],
+        ])
     texts = TEXTS[lang]
     await message.answer(texts['greeting'])
     kb = InlineKeyboardMarkup(inline_keyboard=[
