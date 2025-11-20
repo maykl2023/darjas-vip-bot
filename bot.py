@@ -74,8 +74,10 @@ TEXTS = {
         'check_received': 'Чек получен! Ожидайте — проверяю (1–3 мин) 👀',
         'payment_confirmed': 'Оплата подтверждена! Выдаю доступ 👍',
         'payment_rejected': 'Оплата не подтверждена. Проверьте сумму и адрес. ❌',
-        'no_subscriptions': 'No active subscriptions. / Нет активных подписок.',
-        'subscription_status': 'Your subscriptions: / Ваши подписки:\n{status}'
+        'no_subscriptions': 'Нет активных или ожидающих подписок.',
+        'subscription_status': 'Ваши подписки:\n{status}',
+        'pending_subscription': '{channel}: Ожидает вступления ({duration})',
+        'active_subscription': '{channel}: Заканчивается через {time_left}'
     },
     'en': {
         'greeting': 'Baby, I\'m glad to see you! 😘\nYou are in for an incredible journey... 💋🔞',
@@ -96,8 +98,10 @@ TEXTS = {
         'check_received': 'Check received! Waiting — checking (1–3 min) 👀',
         'payment_confirmed': 'Payment confirmed! Giving access 👍',
         'payment_rejected': 'Payment not confirmed. Check the amount and address. ❌',
-        'no_subscriptions': 'No active subscriptions. / Нет активных подписок.',
-        'subscription_status': 'Your subscriptions: / Ваши подписки:\n{status}'
+        'no_subscriptions': 'No active or pending subscriptions.',
+        'subscription_status': 'Your subscriptions:\n{status}',
+        'pending_subscription': '{channel}: Pending join ({duration})',
+        'active_subscription': '{channel}: Ends in {time_left}'
     }
 }
 
@@ -139,36 +143,53 @@ def get_bilingual_text(key, **kwargs):
 
 def get_channel_name(channel_id):
     if int(channel_id) == PRIVATE_CHANNEL_ID:
-        return ('Private', 'Private')
+        return 'Private'
     elif int(channel_id) == VIP_CHANNEL_ID:
-        return ('VIP', 'VIP')
-    return ('Unknown', 'Неизвестно')
+        return 'VIP'
+    return 'Unknown / Неизвестно'
+
+def get_duration_text(duration):
+    if duration == 'week':
+        return '1 week / 1 неделя'
+    elif duration == 'month':
+        return '1 month / 1 месяц'
+    return duration
 
 async def get_subscription_status(user_id):
-    rows = cursor.execute('SELECT channel, end_date FROM subs WHERE user_id = ? AND end_date IS NOT NULL', (user_id,)).fetchall()
-    if not rows:
-        return get_bilingual_text('no_subscriptions')
-    
-    status_lines = []
     now = datetime.datetime.now()
-    for channel_id, end_date_str in rows:
+    status_lines_en = []
+    status_lines_ru = []
+
+    # Pending subscriptions
+    pending_rows = cursor.execute('SELECT channel, duration FROM subs WHERE user_id = ? AND end_date IS NULL', (user_id,)).fetchall()
+    for channel_id, duration in pending_rows:
+        channel_name = get_channel_name(channel_id)
+        duration_text = get_duration_text(duration)
+        status_lines_en.append(f"{channel_name}: Pending ({duration_text})")
+        status_lines_ru.append(f"{channel_name}: Ожидает ({duration_text})")
+
+    # Active subscriptions
+    active_rows = cursor.execute('SELECT channel, end_date FROM subs WHERE user_id = ? AND end_date IS NOT NULL', (user_id,)).fetchall()
+    for channel_id, end_date_str in active_rows:
         end_date = datetime.datetime.fromisoformat(end_date_str)
         if end_date < now:
-            continue  # Expired, but check_expirations should handle
+            continue
         remaining = end_date - now
         days = remaining.days
         hours = remaining.seconds // 3600
         minutes = (remaining.seconds % 3600) // 60
-        time_left_en = f"{days} days, {hours} hours, {minutes} minutes" if days > 0 else f"{hours} hours, {minutes} minutes"
-        time_left_ru = f"{days} дней, {hours} часов, {minutes} минут" if days > 0 else f"{hours} часов, {minutes} минут"
-        en_name, ru_name = get_channel_name(channel_id)
-        status_lines.append(f"{en_name}: Ends in {time_left_en} / {ru_name}: Заканчивается через {time_left_ru}")
-    
-    if not status_lines:
+        time_left_en = f"{days} days, {hours} hours, {minutes} minutes" if days else f"{hours} hours, {minutes} minutes"
+        time_left_ru = f"{days} дней, {hours} часов, {minutes} минут" if days else f"{hours} часов, {minutes} минут"
+        channel_name = get_channel_name(channel_id)
+        status_lines_en.append(f"{channel_name}: Ends in {time_left_en}")
+        status_lines_ru.append(f"{channel_name}: Заканчивается через {time_left_ru}")
+
+    if not status_lines_en:
         return get_bilingual_text('no_subscriptions')
-    
-    status = '\n'.join(status_lines)
-    return get_bilingual_text('subscription_status', status=status)
+
+    status_en = '\n'.join(status_lines_en)
+    status_ru = '\n'.join(status_lines_ru)
+    return f"Your subscriptions:\n{status_en}\n\nВаши подписки:\n{status_ru}"
 
 # ──────────────────────── СТАРТ ───────────────────────
 @router.message(CommandStart())
@@ -262,6 +283,16 @@ async def stars_paid(message: Message):
     conn.commit()
 
     await message.answer(get_bilingual_text('access_granted', link='\n'.join(links)))
+
+    # Send the main menu with check button
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=TEXTS['en']['private_button'], callback_data='channel_private')],
+        [InlineKeyboardButton(text=TEXTS['en']['vip_button'], callback_data='channel_vip')],
+        [InlineKeyboardButton(text=f"{TEXTS['en']['both_button']} / {TEXTS['ru']['both_button']}", callback_data='channel_both')],
+        [InlineKeyboardButton(text='Check subscription / Проверить подписку', callback_data='check_sub')],
+    ])
+    await message.answer(get_bilingual_text('welcome'), reply_markup=kb)
+
     await bot.send_message(ADMIN_ID, f'Stars оплата: {user_id} → {channel} {duration}')
 
 # ──────────────────────── КРИПТО ─────────────────────
@@ -336,6 +367,16 @@ async def confirm_crypto(callback: CallbackQuery):
     conn.commit()
 
     await bot.send_message(user_id, get_bilingual_text('access_granted', link='\n'.join(links)))
+
+    # Send the main menu with check button
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=TEXTS['en']['private_button'], callback_data='channel_private')],
+        [InlineKeyboardButton(text=TEXTS['en']['vip_button'], callback_data='channel_vip')],
+        [InlineKeyboardButton(text=f"{TEXTS['en']['both_button']} / {TEXTS['ru']['both_button']}", callback_data='channel_both')],
+        [InlineKeyboardButton(text='Check subscription / Проверить подписку', callback_data='check_sub')],
+    ])
+    await bot.send_message(user_id, get_bilingual_text('welcome'), reply_markup=kb)
+
     await callback.message.edit_caption(caption=callback.message.caption + '\n\nПодтверждено')
     await callback.answer(f"{TEXTS['en']['payment_confirmed']} / {TEXTS['ru']['payment_confirmed']}")
 
