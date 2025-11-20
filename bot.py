@@ -56,52 +56,44 @@ PRICES = {
 # ──────────────────────── ТЕКСТЫ ─────────────────────
 TEXTS = {
     'ru': {
-        'greeting': 'Детка, я рада тебя видеть! 😘\nТебя ожидает невероятное путешествие... 💋🔞',
-        'welcome': 'Выберите подписку:',
-        'choose_duration': 'Выберите срок для {channel}:',
-        'price': 'Цена: {price}$ ({stars} Stars) 💰',
+        'greeting': '<b>Детка, я рада тебя видеть!</b> 😘\nТебя ожидает <i>невероятное путешествие...</i> 💋🔞',
+        'welcome': '<b>Выберите подписку:</b>',
+        'choose_duration': '<b>Выберите срок для {channel}:</b>',
+        'price': '<b>Цена: {price}$ ({stars} Stars)</b> 💰',
         'pay_stars': 'Оплатить Stars',
         'pay_crypto': 'Оплатить криптой',
-        'crypto_choice': 'Выберите криптовалюту:',
+        'crypto_choice': '<b>Выберите криптовалюту:</b>',
         'address_msg': '<b>Отправьте ровно {amount}$</b>\n\nАдрес:\n<code>{address}</code>\nСеть: <b>{network}</b>\n\nНажмите на адрес — он скопируется',
-        'proof_msg': 'Пришлите сюда фото/скриншот перевода ↓\nЯ проверю и выдам доступ за 1–3 минуты ⏱️',
-        'access_granted': 'Ссылка для вступления:\n{link}\n\nСрок начнётся после вступления в канал ✅',
-        'subscription_started': 'Подписка активирована! 🎉\nЗаканчивается: <b>{date}</b>',
+        'proof_msg': 'Пришлите сюда фото/скриншот перевода ↓\n<i>Я проверю и выдам доступ за 1–3 минуты</i> ⏱️',
+        'access_granted': '<b>Ссылка для вступления:</b>\n{link}\n\nСрок начнётся после вступления в канал ✅',
+        'subscription_started': '<b>Подписка активирована!</b> 🎉\nЗаканчивается: <b>{date}</b>',
         'back': 'Назад',
         'private_button': 'Private DarjaS 🔒',
         'vip_button': 'VIP DarjaS 🔞',
         'both_button': 'Private+VIP (скидка) 💸',
         'check_received': 'Чек получен! Ожидайте — проверяю (1–3 мин) 👀',
-        'payment_confirmed': 'Оплата подтверждена! Выдаю доступ 👍',
-        'payment_rejected': 'Оплата не подтверждена. Проверьте сумму и адрес. ❌',
-        'no_subscriptions': 'Нет активных или ожидающих подписок.',
-        'subscription_status': 'Ваши подписки:\n{status}',
-        'pending_subscription': '{channel}: Ожидает вступления ({duration})',
-        'active_subscription': '{channel}: Заканчивается через {time_left}'
+        'payment_confirmed': '<b>Оплата подтверждена!</b> Выдаю доступ 👍',
+        'payment_rejected': '<b>Оплата не подтверждена.</b> Проверьте сумму и адрес. ❌'
     },
     'en': {
-        'greeting': 'Baby, I\'m glad to see you! 😘\nYou are in for an incredible journey... 💋🔞',
-        'welcome': 'Choose subscription:',
-        'choose_duration': 'Choose duration for {channel}:',
-        'price': 'Price: {price}$ ({stars} Stars) 💰',
+        'greeting': '<b>Baby, I\'m glad to see you!</b> 😘\nYou are in for an <i>incredible journey...</i> 💋🔞',
+        'welcome': '<b>Choose subscription:</b>',
+        'choose_duration': '<b>Choose duration for {channel}:</b>',
+        'price': '<b>Price: {price}$ ({stars} Stars)</b> 💰',
         'pay_stars': 'Pay with Stars',
         'pay_crypto': 'Pay with crypto',
-        'crypto_choice': 'Choose cryptocurrency:',
+        'crypto_choice': '<b>Choose cryptocurrency:</b>',
         'address_msg': '<b>Send exactly {amount}$</b>\n\nAddress:\n<code>{address}</code>\nNetwork: <b>{network}</b>\n\nTap the address to copy',
-        'proof_msg': 'Send a photo/screenshot of the transfer here ↓\nI will check and give access in 1–3 minutes ⏱️',
-        'access_granted': 'Join link:\n{link}\n\nSubscription starts after joining the channel ✅',
-        'subscription_started': 'Subscription activated! 🎉\nEnds on: <b>{date}</b>',
+        'proof_msg': 'Send a photo/screenshot of the transfer here ↓\n<i>I will check and give access in 1–3 minutes</i> ⏱️',
+        'access_granted': '<b>Join link:</b>\n{link}\n\nSubscription starts after joining the channel ✅',
+        'subscription_started': '<b>Subscription activated!</b> 🎉\nEnds on: <b>{date}</b>',
         'back': 'Back',
         'private_button': 'Private DarjaS 🔒',
         'vip_button': 'VIP DarjaS 🔞',
         'both_button': 'Private+VIP (discount) 💸',
         'check_received': 'Check received! Waiting — checking (1–3 min) 👀',
-        'payment_confirmed': 'Payment confirmed! Giving access 👍',
-        'payment_rejected': 'Payment not confirmed. Check the amount and address. ❌',
-        'no_subscriptions': 'No active or pending subscriptions.',
-        'subscription_status': 'Your subscriptions:\n{status}',
-        'pending_subscription': '{channel}: Pending join ({duration})',
-        'active_subscription': '{channel}: Ends in {time_left}'
+        'payment_confirmed': '<b>Payment confirmed!</b> Giving access 👍',
+        'payment_rejected': '<b>Payment not confirmed.</b> Check the amount and address. ❌'
     }
 }
 
@@ -141,56 +133,6 @@ def get_bilingual_text(key, **kwargs):
     ru = TEXTS['ru'][key].format(**kwargs)
     return f"{en}\n\n{ru}"
 
-def get_channel_name(channel_id):
-    if int(channel_id) == PRIVATE_CHANNEL_ID:
-        return 'Private'
-    elif int(channel_id) == VIP_CHANNEL_ID:
-        return 'VIP'
-    return 'Unknown / Неизвестно'
-
-def get_duration_text(duration):
-    if duration == 'week':
-        return '1 week / 1 неделя'
-    elif duration == 'month':
-        return '1 month / 1 месяц'
-    return duration
-
-async def get_subscription_status(user_id):
-    now = datetime.datetime.now()
-    status_lines_en = []
-    status_lines_ru = []
-
-    # Pending subscriptions
-    pending_rows = cursor.execute('SELECT channel, duration FROM subs WHERE user_id = ? AND end_date IS NULL', (user_id,)).fetchall()
-    for channel_id, duration in pending_rows:
-        channel_name = get_channel_name(channel_id)
-        duration_text = get_duration_text(duration)
-        status_lines_en.append(f"{channel_name}: Pending ({duration_text})")
-        status_lines_ru.append(f"{channel_name}: Ожидает ({duration_text})")
-
-    # Active subscriptions
-    active_rows = cursor.execute('SELECT channel, end_date FROM subs WHERE user_id = ? AND end_date IS NOT NULL', (user_id,)).fetchall()
-    for channel_id, end_date_str in active_rows:
-        end_date = datetime.datetime.fromisoformat(end_date_str)
-        if end_date < now:
-            continue
-        remaining = end_date - now
-        days = remaining.days
-        hours = remaining.seconds // 3600
-        minutes = (remaining.seconds % 3600) // 60
-        time_left_en = f"{days} days, {hours} hours, {minutes} minutes" if days else f"{hours} hours, {minutes} minutes"
-        time_left_ru = f"{days} дней, {hours} часов, {minutes} минут" if days else f"{hours} часов, {minutes} минут"
-        channel_name = get_channel_name(channel_id)
-        status_lines_en.append(f"{channel_name}: Ends in {time_left_en}")
-        status_lines_ru.append(f"{channel_name}: Заканчивается через {time_left_ru}")
-
-    if not status_lines_en:
-        return get_bilingual_text('no_subscriptions')
-
-    status_en = '\n'.join(status_lines_en)
-    status_ru = '\n'.join(status_lines_ru)
-    return f"Your subscriptions:\n{status_en}\n\nВаши подписки:\n{status_ru}"
-
 # ──────────────────────── СТАРТ ───────────────────────
 @router.message(CommandStart())
 async def start(message: Message):
@@ -199,15 +141,8 @@ async def start(message: Message):
         [InlineKeyboardButton(text=TEXTS['en']['private_button'], callback_data='channel_private')],
         [InlineKeyboardButton(text=TEXTS['en']['vip_button'], callback_data='channel_vip')],
         [InlineKeyboardButton(text=f"{TEXTS['en']['both_button']} / {TEXTS['ru']['both_button']}", callback_data='channel_both')],
-        [InlineKeyboardButton(text='Check subscription / Проверить подписку', callback_data='check_sub')],
     ])
     await message.answer(get_bilingual_text('welcome'), reply_markup=kb)
-
-# ──────────────────────── ПРОВЕРКА ПОДПИСКИ ─────────────────
-@router.callback_query(F.data == 'check_sub')
-async def check_subscription(callback: CallbackQuery):
-    status = await get_subscription_status(callback.from_user.id)
-    await callback.message.answer(status)
 
 # ──────────────────────── ВЫБОР КАНАЛА/СРОКА ─────────────────
 @router.callback_query(F.data.startswith('channel_'))
@@ -226,7 +161,6 @@ async def back_main(callback: CallbackQuery):
         [InlineKeyboardButton(text=TEXTS['en']['private_button'], callback_data='channel_private')],
         [InlineKeyboardButton(text=TEXTS['en']['vip_button'], callback_data='channel_vip')],
         [InlineKeyboardButton(text=f"{TEXTS['en']['both_button']} / {TEXTS['ru']['both_button']}", callback_data='channel_both')],
-        [InlineKeyboardButton(text='Check subscription / Проверить подписку', callback_data='check_sub')],
     ])
     await callback.message.edit_text(get_bilingual_text('welcome'), reply_markup=kb)
 
@@ -284,12 +218,11 @@ async def stars_paid(message: Message):
 
     await message.answer(get_bilingual_text('access_granted', link='\n'.join(links)))
 
-    # Send the main menu with check button
+    # Send the main menu
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=TEXTS['en']['private_button'], callback_data='channel_private')],
         [InlineKeyboardButton(text=TEXTS['en']['vip_button'], callback_data='channel_vip')],
         [InlineKeyboardButton(text=f"{TEXTS['en']['both_button']} / {TEXTS['ru']['both_button']}", callback_data='channel_both')],
-        [InlineKeyboardButton(text='Check subscription / Проверить подписку', callback_data='check_sub')],
     ])
     await message.answer(get_bilingual_text('welcome'), reply_markup=kb)
 
@@ -368,12 +301,11 @@ async def confirm_crypto(callback: CallbackQuery):
 
     await bot.send_message(user_id, get_bilingual_text('access_granted', link='\n'.join(links)))
 
-    # Send the main menu with check button
+    # Send the main menu
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=TEXTS['en']['private_button'], callback_data='channel_private')],
         [InlineKeyboardButton(text=TEXTS['en']['vip_button'], callback_data='channel_vip')],
         [InlineKeyboardButton(text=f"{TEXTS['en']['both_button']} / {TEXTS['ru']['both_button']}", callback_data='channel_both')],
-        [InlineKeyboardButton(text='Check subscription / Проверить подписку', callback_data='check_sub')],
     ])
     await bot.send_message(user_id, get_bilingual_text('welcome'), reply_markup=kb)
 
