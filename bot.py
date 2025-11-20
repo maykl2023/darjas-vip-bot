@@ -27,8 +27,15 @@ PRIVATE_CHANNEL_ID = -1003390307296
 VIP_CHANNEL_ID = -1003490943132
 
 # Крипто-кошельки
-USDT_TRC20 = 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK'
-LTC_ADDRESS = 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz'
+CRYPTO_WALLETS = {
+    'usdt': {'address': 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK', 'network': 'TRC20'},
+    'ltc': {'address': 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz', 'network': 'LTC'},
+    'ton': {'address': 'UQBagTGNqS-9-DOudj7oHblM4Nhl2EeJdLTvrKzsfKHDTC5q', 'network': 'TON'},
+    'sol': {'address': '5vCxpDJS6BaHuoyP3Yqixwr75KtJike9gjc95VsZ5UxT', 'network': 'SOLANA'},
+    'trx': {'address': 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK', 'network': 'TRC20'},
+    'doge': {'address': 'DN3ASEyxJL6uNcTA2XR5esyva5mwQRwCDA', 'network': 'DOGE'},
+    'bch': {'address': '15TSCoqjPm5ypf7HuyvEoZhmW1MwCb73oS', 'network': 'BCH'}
+}
 
 WEB_SERVER_HOST = "0.0.0.0"
 WEB_SERVER_PORT = int(getenv("PORT", 8080))
@@ -137,14 +144,14 @@ async def kick_user(user_id, channel_id):
 async def start(message: Message):
     user_id = message.from_user.id
     lang = get_lang(user_id)
-    if lang == 'ru':
-        kb_lang = InlineKeyboardMarkup(inline_keyboard=[
+    if lang is None:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Русский', callback_data='lang_ru')],
             [InlineKeyboardButton(text='English', callback_data='lang_en')],
         ])
-    else:
-        kb_lang = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text='Русский', callback_data='lang_ru')],
-        ])
+        await message.answer('Выберите язык / Choose language:', reply_markup=kb)
+        return
+
     texts = TEXTS[lang]
     await message.answer(texts['greeting'])
     kb = InlineKeyboardMarkup(inline_keyboard=[
