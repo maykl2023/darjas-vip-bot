@@ -27,15 +27,8 @@ PRIVATE_CHANNEL_ID = -1003390307296
 VIP_CHANNEL_ID = -1003490943132
 
 # Крипто-кошельки
-CRYPTO_WALLETS = {
-    'usdt': {'address': 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK', 'network': 'TRC20'},
-    'ltc': {'address': 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz', 'network': 'LTC'},
-    'ton': {'address': 'UQBagTGNqS-9-DOudj7oHblM4Nhl2EeJdLTvrKzsfKHDTC5q', 'network': 'TON'},
-    'sol': {'address': '5vCxpDJS6BaHuoyP3Yqixwr75KtJike9gjc95VsZ5UxT', 'network': 'SOLANA'},
-    'trx': {'address': 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK', 'network': 'TRC20'},
-    'doge': {'address': 'DN3ASEyxJL6uNcTA2XR5esyva5mwQRwCDA', 'network': 'DOGE'},
-    'bch': {'address': '15TSCoqjPm5ypf7HuyvEoZhmW1MwCb73oS', 'network': 'BCH'}
-}
+USDT_TRC20 = 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK'
+LTC_ADDRESS = 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz'
 
 WEB_SERVER_HOST = "0.0.0.0"
 WEB_SERVER_PORT = int(getenv("PORT", 8080))
@@ -56,6 +49,7 @@ PRICES = {
 # ──────────────────────── ТЕКСТЫ ─────────────────────
 TEXTS = {
     'ru': {
+        'language_choice': 'Выберите язык:',
         'greeting': 'Детка я рада тебя видеть😘\nТебя ожидает невероятное путешествие💋🔞',
         'welcome': 'Выберите подписку:',
         'choose_duration': 'Выберите срок для {channel}:',
@@ -75,6 +69,7 @@ TEXTS = {
         'payment_confirmed': 'Оплата подтверждена! Выдаю доступ'
     },
     'en': {
+        'language_choice': 'Choose language:',
         'greeting': 'Baby, I\'m glad to see you😘\nYou are in for an incredible journey💋🔞',
         'welcome': 'Choose subscription:',
         'choose_duration': 'Choose duration for {channel}:',
@@ -115,7 +110,7 @@ dp.include_router(router)
 def get_lang(user_id):
     cursor.execute('SELECT lang FROM users WHERE user_id = ?', (user_id,))
     r = cursor.fetchone()
-    return r[0] if r else 'ru'
+    return r[0] if r else None
 
 async def set_lang(user_id, lang):
     cursor.execute('INSERT OR REPLACE INTO users (user_id, lang) VALUES (?, ?)', (user_id, lang))
@@ -142,8 +137,15 @@ async def kick_user(user_id, channel_id):
 async def start(message: Message):
     user_id = message.from_user.id
     lang = get_lang(user_id)
-    texts = TEXTS[lang]
+    if lang is None:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Русский', callback_data='lang_ru')],
+            [InlineKeyboardButton(text='English', callback_data='lang_en')],
+        ])
+        await message.answer('Выберите язык / Choose language:', reply_markup=kb)
+        return
 
+    texts = TEXTS[lang]
     await message.answer(texts['greeting'])
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=texts['private_button'], callback_data=f'channel_private_{lang}')],
@@ -152,8 +154,8 @@ async def start(message: Message):
     ])
     await message.answer(texts['welcome'], reply_markup=kb)
 
-@router.callback_query(F.data.startswith('switch_'))
-async def switch_lang(callback: CallbackQuery):
+@router.callback_query(F.data.startswith('lang_'))
+async def choose_lang(callback: CallbackQuery):
     lang = callback.data.split('_')[1]
     await set_lang(callback.from_user.id, lang)
     await callback.message.delete()
