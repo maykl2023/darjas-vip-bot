@@ -117,7 +117,7 @@ dp.include_router(router)
 def get_lang(user_id):
     cursor.execute('SELECT lang FROM users WHERE user_id = ?', (user_id,))
     r = cursor.fetchone()
-    return r[0] if r else 'ru'
+    return r[0] if r else None
 
 async def set_lang(user_id, lang):
     cursor.execute('INSERT OR REPLACE INTO users (user_id, lang) VALUES (?, ?)', (user_id, lang))
@@ -301,6 +301,8 @@ async def receive_proof(message: Message):
         caption=f'Крипто-чек от {message.from_user.full_name}\nID: {message.from_user.id}\n@{message.from_user.username or "—"}',
         reply_markup=kb
     )
+    lang = get_lang(message.from_user.id)
+    texts = TEXTS[lang or 'ru']  # Fallback to 'ru' if lang is None
     await message.answer(texts['check_received'])
 
 # ──────────────────────── ПОДТВЕРЖДЕНИЕ ─────────────────────
@@ -332,7 +334,9 @@ async def confirm_crypto(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('reject_'))
 async def reject_crypto(callback: CallbackQuery):
     user_id = int(callback.data.split('_')[1])
-    await bot.send_message(user_id, 'Оплата не подтверждена. Проверьте сумму и адрес.')
+    lang = get_lang(user_id)
+    texts = TEXTS[lang or 'ru']  # Fallback to 'ru' if lang is None
+    await bot.send_message(user_id, 'Оплата не подтверждена. Проверьте сумму и адрес.' if lang == 'ru' else 'Payment not confirmed. Check the amount and address.')
     await callback.message.edit_caption(caption=callback.message.caption + '\n\nОтклонено')
     cursor.execute('DELETE FROM crypto_pending WHERE user_id = ?', (user_id,))
     conn.commit()
