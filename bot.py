@@ -36,11 +36,11 @@ STAR_RATE = 0.025
 def usd_to_stars(usd):
     return int(usd / STAR_RATE)
 
-# Цены (убрал test, добавил both если нужно)
+# Цены (week = 0.025 для теста, month без изменений)
 PRICES = {
-    'private': {'week': 6, 'month': 18},
-    'vip': {'week': 12, 'month': 36},
-    'both': {'week': 16, 'month': 43}  # Добавил, если нужно убрать — удали
+    'private': {'week': 0.025, 'month': 18},
+    'vip': {'week': 0.025, 'month': 36},
+    'both': {'week': 0.025, 'month': 43}
 }
 
 # Тексты
@@ -321,7 +321,7 @@ async def back_to_crypto(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}_{lang}')],
         [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}_{lang}')],
-        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{lang}')]
+        [InlineKeyboardButton(text=texts['back'], callback_data=f'back_to_duration_{channel}_{duration}_{lang}')]
     ])
     await callback.message.edit_text(texts['choose_crypto'], reply_markup=kb)
     await callback.answer()
