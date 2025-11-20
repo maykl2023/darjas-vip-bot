@@ -48,52 +48,52 @@ STAR_RATE = 0.025
 def usd_to_stars(usd): return int(usd / STAR_RATE)
 
 PRICES = {
-    'private': {'week': 6,  'month': 18},
-    'vip':     {'week': 12, 'month': 36},
-    'both':    {'week': 16, 'month': 43}
+    'private': {'week': 7,  'month': 20},
+    'vip':     {'week': 15, 'month': 40},
+    'both':    {'week': 20, 'month': 50}
 }
 
 # ──────────────────────── ТЕКСТЫ ─────────────────────
 TEXTS = {
     'ru': {
-        'greeting': 'Детка я рада тебя видеть😘\nТебя ожидает невероятное путешествие💋🔞',
+        'greeting': 'Детка, я рада тебя видеть! 😘\nТебя ожидает невероятное путешествие... 💋🔞',
         'welcome': 'Выберите подписку:',
         'choose_duration': 'Выберите срок для {channel}:',
-        'price': 'Цена: {price}$ ({stars} Stars)',
+        'price': 'Цена: {price}$ ({stars} Stars) 💰',
         'pay_stars': 'Оплатить Stars',
         'pay_crypto': 'Оплатить криптой',
         'crypto_choice': 'Выберите криптовалюту:',
         'address_msg': '<b>Отправьте ровно {amount}$</b>\n\nАдрес:\n<code>{address}</code>\nСеть: <b>{network}</b>\n\nНажмите на адрес — он скопируется',
-        'proof_msg': 'Пришлите сюда фото/скриншот перевода ↓\nЯ проверю и выдам доступ за 1–3 минуты',
-        'access_granted': 'Ссылка для вступления:\n{link}\n\nСрок начнётся после вступления в канал',
-        'subscription_started': 'Подписка активирована!\nЗаканчивается: <b>{date}</b>',
+        'proof_msg': 'Пришлите сюда фото/скриншот перевода ↓\nЯ проверю и выдам доступ за 1–3 минуты ⏱️',
+        'access_granted': 'Ссылка для вступления:\n{link}\n\nСрок начнётся после вступления в канал ✅',
+        'subscription_started': 'Подписка активирована! 🎉\nЗаканчивается: <b>{date}</b>',
         'back': 'Назад',
-        'private_button': 'Private DarjaS',
-        'vip_button': 'VIP DarjaS',
-        'both_button': 'Private+VIP (скидка)',
-        'check_received': 'Чек получен! Ожидайте — проверяю (1–3 мин)',
-        'payment_confirmed': 'Оплата подтверждена! Выдаю доступ',
-        'payment_rejected': 'Оплата не подтверждена. Проверьте сумму и адрес.'
+        'private_button': 'Private DarjaS 🔒',
+        'vip_button': 'VIP DarjaS 🌟',
+        'both_button': 'Private+VIP (скидка) 💸',
+        'check_received': 'Чек получен! Ожидайте — проверяю (1–3 мин) 👀',
+        'payment_confirmed': 'Оплата подтверждена! Выдаю доступ 👍',
+        'payment_rejected': 'Оплата не подтверждена. Проверьте сумму и адрес. ❌'
     },
     'en': {
-        'greeting': 'Baby, I\'m glad to see you😘\nYou are in for an incredible journey💋🔞',
+        'greeting': 'Baby, I\'m glad to see you! 😘\nYou are in for an incredible journey... 💋🔞',
         'welcome': 'Choose subscription:',
         'choose_duration': 'Choose duration for {channel}:',
-        'price': 'Price: {price}$ ({stars} Stars)',
+        'price': 'Price: {price}$ ({stars} Stars) 💰',
         'pay_stars': 'Pay with Stars',
         'pay_crypto': 'Pay with crypto',
         'crypto_choice': 'Choose cryptocurrency:',
         'address_msg': '<b>Send exactly {amount}$</b>\n\nAddress:\n<code>{address}</code>\nNetwork: <b>{network}</b>\n\nTap the address to copy',
-        'proof_msg': 'Send a photo/screenshot of the transfer here ↓\nI will check and give access in 1–3 minutes',
-        'access_granted': 'Join link:\n{link}\n\nSubscription starts after joining the channel',
-        'subscription_started': 'Subscription activated!\nEnds on: <b>{date}</b>',
+        'proof_msg': 'Send a photo/screenshot of the transfer here ↓\nI will check and give access in 1–3 minutes ⏱️',
+        'access_granted': 'Join link:\n{link}\n\nSubscription starts after joining the channel ✅',
+        'subscription_started': 'Subscription activated! 🎉\nEnds on: <b>{date}</b>',
         'back': 'Back',
-        'private_button': 'Private DarjaS',
-        'vip_button': 'VIP DarjaS',
-        'both_button': 'Private+VIP (discount)',
-        'check_received': 'Check received! Waiting — checking (1–3 min)',
-        'payment_confirmed': 'Payment confirmed! Giving access',
-        'payment_rejected': 'Payment not confirmed. Check the amount and address.'
+        'private_button': 'Private DarjaS 🔒',
+        'vip_button': 'VIP DarjaS 🌟',
+        'both_button': 'Private+VIP (discount) 💸',
+        'check_received': 'Check received! Waiting — checking (1–3 min) 👀',
+        'payment_confirmed': 'Payment confirmed! Giving access 👍',
+        'payment_rejected': 'Payment not confirmed. Check the amount and address. ❌'
     }
 }
 
