@@ -269,7 +269,7 @@ async def receive_proof(message: Message):
     if not cursor.fetchone(): return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Подтвердить оплату', callback_data=f'confirm_{message.from_user.id}')],
+        [InlineKeyboardButton(text='Выдать доступ', callback_data=f'confirm_{message.from_user.id}')],
         [InlineKeyboardButton(text='Отклонить', callback_data=f'reject_{message.from_user.id}')],
     ])
 
