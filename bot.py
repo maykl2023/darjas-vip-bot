@@ -27,8 +27,15 @@ PRIVATE_CHANNEL_ID = -1003390307296
 VIP_CHANNEL_ID = -1003490943132
 
 # Крипто-кошельки
-USDT_TRC20 = 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK'
-LTC_ADDRESS = 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz'
+CRYPTO_WALLETS = {
+    'usdt': {'address': 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK', 'network': 'TRC20'},
+    'ltc': {'address': 'LKVnoZeGr3hg2BYxwDxYbuEb7EiKrScHVz', 'network': 'LTC'},
+    'ton': {'address': 'UQBagTGNqS-9-DOudj7oHblM4Nhl2EeJdLTvrKzsfKHDTC5q', 'network': 'TON'},
+    'sol': {'address': '5vCxpDJS6BaHuoyP3Yqixwr75KtJike9gjc95VsZ5UxT', 'network': 'SOLANA'},
+    'trx': {'address': 'TQZnT946myLGyHEvvcNZiGN1b18An9yFhK', 'network': 'TRC20'},
+    'doge': {'address': 'DN3ASEyxJL6uNcTA2XR5esyva5mwQRwCDA', 'network': 'DOGE'},
+    'bch': {'address': '15TSCoqjPm5ypf7HuyvEoZhmW1MwCb73oS', 'network': 'BCH'}
+}
 
 WEB_SERVER_HOST = "0.0.0.0"
 WEB_SERVER_PORT = int(getenv("PORT", 8080))
@@ -243,6 +250,11 @@ async def crypto_choice(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='USDT TRC20', callback_data=f'crypto_usdt_{channel}_{duration}_{lang}')],
         [InlineKeyboardButton(text='LTC', callback_data=f'crypto_ltc_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text='TON', callback_data=f'crypto_ton_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text='SOLANA SOL', callback_data=f'crypto_sol_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text='TRX TRON (TRC20)', callback_data=f'crypto_trx_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text='DOGE', callback_data=f'crypto_doge_{channel}_{duration}_{lang}')],
+        [InlineKeyboardButton(text='BITCOIN CASH (BCH)', callback_data=f'crypto_bch_{channel}_{duration}_{lang}')],
         [InlineKeyboardButton(text=texts['back'], callback_data=f'duration_{channel}_{duration}_{lang}')],
     ])
     await callback.message.edit_text(texts['crypto_choice'], reply_markup=kb)
@@ -253,8 +265,9 @@ async def show_crypto_address(callback: CallbackQuery):
     crypto, channel, duration, lang = parts[1], parts[2], parts[3], parts[4]
     texts = TEXTS[lang]
     amount = PRICES[channel][duration]
-    address = USDT_TRC20 if crypto == 'usdt' else LTC_ADDRESS
-    network = 'TRC20' if crypto == 'usdt' else 'LTC'
+    wallet = CRYPTO_WALLETS[crypto]
+    address = wallet['address']
+    network = wallet['network']
 
     cursor.execute('INSERT OR REPLACE INTO crypto_pending VALUES (?, ?, ?, ?, ?)',
                    (callback.from_user.id, channel, duration, crypto, amount))
